@@ -1,10 +1,23 @@
 import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
+import multipart from "@fastify/multipart";
 import { loadConfig } from "./config.js";
 import { registerInternalRoutes } from "./routes/internal.js";
+import { initializeModel } from "./model/state.js";
 
 export async function buildServer() {
-  const app = Fastify({ logger: false });
+  const config = loadConfig();
+  const app = Fastify({
+    logger: false,
+    requestIdHeader: "x-request-id",
+  });
+
+  await app.register(multipart, {
+    limits: {
+      fileSize: config.maxImageSizeBytes,
+    },
+  });
+
   await registerInternalRoutes(app);
   return app;
 }
@@ -12,6 +25,11 @@ export async function buildServer() {
 async function start() {
   const config = loadConfig();
   const app = await buildServer();
+
+  // Trigger controlled model preload on startup
+  initializeModel(config).catch((err) => {
+    console.error("Failed to pre-load model on service startup:", err);
+  });
 
   await app.listen({ port: config.port, host: "0.0.0.0" });
 }
