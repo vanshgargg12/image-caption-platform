@@ -1,0 +1,46 @@
+.main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+.subtitle {
+  margin-top: 0.5rem;
+  color: #444;
+}
+
+.status {
+  margin-top: 2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.status h2 {
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.status ul {
+  list-style: none;
+  padding: 0;
+}
+
+.status li {
+  margin-bottom: 0.25rem;
+}
+
+.note {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.note code {
+  font-family: ui-monospace, monospace;
+  background: #f4f4f4;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}

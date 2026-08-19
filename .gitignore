@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+target/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+
+# Model artifacts and caches
+.model-cache/
+models/
+*.onnx
+*.bin
+*.safetensors
+
+# Uploads and datasets
+uploads/
+datasets/
+
+# Test and coverage
+coverage/
+.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+
+# Java
+*.class
+*.jar
+!**/gradle-wrapper.jar
+hs_err_pid*
+
+# Misc
+.vercel
