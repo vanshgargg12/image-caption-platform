@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-08-19T20:20:00.000Z",
+  "requestId": "123e4567-e89b-12d3-a456-426614174000",
+  "code": "MODEL_NOT_READY",
+  "message": "Inference service model is not loaded or ready.",
+  "details": null
+}

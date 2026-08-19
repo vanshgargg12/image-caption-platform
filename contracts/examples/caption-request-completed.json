@@ -1,0 +1,15 @@
+{
+  "id": "e4d3c2b1-a098-4765-b432-10fe98765432",
+  "status": "COMPLETED",
+  "originalFilename": "dog-running.jpg",
+  "imageHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "captionMode": "SHORT",
+  "modelName": "Xenova/vit-gpt2-image-captioning",
+  "modelVersion": "main",
+  "generatedCaption": "a dog running across a green grassy field",
+  "editedCaption": null,
+  "inferenceTimeMs": 340,
+  "createdAt": "2026-08-19T20:00:00.000Z",
+  "completedAt": "2026-08-19T20:00:01.200Z",
+  "errorCode": null
+}

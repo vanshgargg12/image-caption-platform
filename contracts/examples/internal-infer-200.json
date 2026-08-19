@@ -1,0 +1,8 @@
+{
+  "caption": "a dog running across a green grassy field",
+  "model": "Xenova/vit-gpt2-image-captioning",
+  "modelVersion": "main",
+  "mode": "SHORT",
+  "inferenceTimeMs": 340,
+  "requestId": "123e4567-e89b-12d3-a456-426614174000"
+}
