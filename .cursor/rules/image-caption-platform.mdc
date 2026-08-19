@@ -1,0 +1,64 @@
+---
+description: Image Caption Platform — project context, architecture constraints, and working procedure
+alwaysApply: true
+---
+
+# Image Caption Platform
+
+## Project Structure
+
+```
+image-caption-platform/
+├── frontend/        — Next.js, React, TypeScript
+├── backend/         — Java, Spring Boot public API
+├── inference/       — Node.js, Transformers.js model service
+├── contracts/       — OpenAPI specifications and shared schemas
+├── infrastructure/  — Docker and deployment configuration
+├── evaluation/      — Evaluation manifests, scripts, benchmark results
+├── docs/            — Product, architecture, and model documentation
+└── README.md
+```
+
+## Non-Negotiable Requirements
+
+1. **No Python** anywhere in runtime, scripts, tests, evaluation tools, or deployment.
+2. Use a **pretrained ONNX-compatible image-captioning model** through **Transformers.js**.
+3. Start with **`Xenova/vit-gpt2-image-captioning`**.
+4. Add **Florence-2** only after the basic end-to-end application works.
+5. The **browser must never call the inference service directly**.
+6. Public flow must be: **Next.js frontend → Spring Boot backend → Node.js inference service**.
+7. The inference service must remain an **internal service**.
+8. **Load the model once** and reuse it for all inference requests.
+9. **Pin model versions or revisions**. Do not silently use an unpinned moving model revision.
+10. Use **TypeScript strict mode**.
+11. Use **Java 21** or another explicitly documented supported LTS version.
+12. Prefer **simple, maintainable solutions** over unnecessary microservices or infrastructure.
+13. Do **not** add authentication, batch processing, OCR, object detection, Redis, Kafka, or Kubernetes during the MVP.
+14. Do **not** store uploaded images permanently by default.
+15. **Never trust** uploaded filenames, extensions, or client-provided MIME types.
+16. Do **not commit** model binaries, datasets, uploaded images, secrets, or generated build files.
+17. All APIs must return **structured errors** with stable machine-readable error codes.
+18. Every completed phase must include **tests, documentation, and commands for local verification**.
+19. **Never claim** that a test or build passes unless you actually ran it.
+20. Do **not** make unrelated changes outside the requested phase.
+
+## Working Procedure (Every Task)
+
+1. Inspect the relevant existing code first.
+2. State a short implementation plan.
+3. Identify assumptions or blockers.
+4. Implement only the requested scope.
+5. Run formatting, linting, tests, and builds relevant to changed components.
+6. Fix failures caused by the changes.
+7. Summarize:
+   - Files created or changed
+   - Important decisions
+   - Commands executed
+   - Test results
+   - Remaining limitations
+8. Do **not** begin the next phase automatically.
+
+## Technical Guidance
+
+- Use **official documentation** for framework and model APIs.
+- Do **not** invent Transformers.js methods or rely on outdated examples without verifying compatibility with the installed version.
