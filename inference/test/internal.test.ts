@@ -33,7 +33,7 @@ describe("internal routes", () => {
       url: "/internal/ready",
     });
 
-    assert.equal(response.statusCode, 200);
+    assert.equal(response.statusCode, 503);
 
     const body = response.json<{
       status: string;

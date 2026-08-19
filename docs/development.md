@@ -67,19 +67,29 @@ Environment variables: `BACKEND_PORT`, `INFERENCE_BASE_URL` (used in later phase
 cd inference
 npm install
 npm run dev        # http://localhost:3001
+npm run caption -- /path/to/image.jpg # CLI spike
 npm run lint
-npm test
+npm test           # CI integration tests (mocked model)
 npm run build
 ```
 
-Health checks (internal only):
+Internal HTTP endpoints:
 
 ```bash
+# Liveness check (200 OK)
 curl http://localhost:3001/internal/health
+
+# Readiness check (200 OK when ready, 503 when loading/not ready)
 curl http://localhost:3001/internal/ready
+
+# Perform image captioning (multipart upload)
+curl -X POST http://localhost:3001/internal/infer \
+  -F "image=@/path/to/image.jpg" \
+  -F "mode=SHORT"
 ```
 
-Environment variables: `INFERENCE_PORT`, `MODEL_ID`, `MODEL_REVISION`, `MODEL_CACHE_DIR`.
+Environment variables: `INFERENCE_PORT`, `MODEL_ID`, `MODEL_REVISION`, `MODEL_CACHE_DIR`, `MAX_IMAGE_SIZE_BYTES`, `INFERENCE_TIMEOUT_MS`, `MAX_CONCURRENT_INFERENCE`.
+
 
 ## Verification Checklist
 
