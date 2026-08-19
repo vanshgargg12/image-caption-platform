@@ -1,0 +1,15 @@
+{
+  "id": "f5e4d3c2-b1a0-4987-a654-210fe9876543",
+  "status": "PROCESSING",
+  "originalFilename": "scenic-mountain.png",
+  "imageHash": "a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0",
+  "captionMode": "SHORT",
+  "modelName": "Xenova/vit-gpt2-image-captioning",
+  "modelVersion": "main",
+  "generatedCaption": null,
+  "editedCaption": null,
+  "inferenceTimeMs": null,
+  "createdAt": "2026-08-19T20:05:00.000Z",
+  "completedAt": null,
+  "errorCode": null
+}

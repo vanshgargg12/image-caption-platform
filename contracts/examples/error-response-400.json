@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-08-19T20:20:00.000Z",
+  "requestId": "123e4567-e89b-12d3-a456-426614174000",
+  "code": "UNSUPPORTED_IMAGE_TYPE",
+  "message": "File headers do not match a valid JPEG or PNG image.",
+  "details": null
+}

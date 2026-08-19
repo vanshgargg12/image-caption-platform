@@ -1,0 +1,378 @@
+openapi: 3.0.3
+info:
+  title: Image Caption Platform Public API
+  description: Public API for requesting image captions, retrieving generation status, submitting feedback, and health checks.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Spring Boot Backend Service (Local Development)
+
+paths:
+  /api/v1/health:
+    get:
+      summary: Backend Service Liveness Check
+      description: Confirms that the Spring Boot backend process is running.
+      operationId: getPublicHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: UP
+                  service:
+                    type: string
+                    example: backend
+                required:
+                  - status
+                  - service
+              examples:
+                PublicHealth:
+                  summary: Healthy backend process status
+                  value:
+                    status: UP
+                    service: backend
+
+  /api/v1/captions:
+    post:
+      summary: Submit Image for Caption Generation
+      description: Uploads an image file and initiates caption generation. Accepts JPEG and PNG files up to 10MB.
+      operationId: createCaptionRequest
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: The image file (JPEG or PNG, max size 10MB).
+                captionMode:
+                  $ref: '#/components/schemas/CaptionMode'
+              required:
+                - image
+      responses:
+        '201':
+          description: Caption request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptionRequest'
+              examples:
+                CaptionCompleted:
+                  $ref: '#/components/examples/CaptionRequestCompleted'
+        '400':
+          description: Invalid upload request or unsupported file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                UnsupportedImageType:
+                  $ref: '#/components/examples/Error400'
+        '413':
+          description: Payload too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/captions/{id}:
+    get:
+      summary: Get Caption Request by ID
+      description: Retrieves the status and generated output for a specific caption request.
+      operationId: getCaptionRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID string identifying the caption request.
+          schema:
+            type: string
+            format: uuid
+            example: e4d3c2b1-a098-4765-b432-10fe98765432
+      responses:
+        '200':
+          description: Caption request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptionRequest'
+              examples:
+                CaptionCompleted:
+                  $ref: '#/components/examples/CaptionRequestCompleted'
+        '404':
+          description: Caption request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/captions/{id}/feedback:
+    post:
+      summary: Submit Feedback for a Caption Request
+      description: Records user ratings and comments regarding the accuracy of a generated caption.
+      operationId: createCaptionFeedback
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID string identifying the caption request.
+          schema:
+            type: string
+            format: uuid
+            example: e4d3c2b1-a098-4765-b432-10fe98765432
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating:
+                  $ref: '#/components/schemas/FeedbackRating'
+                missingInformation:
+                  type: string
+                  nullable: true
+                incorrectInformation:
+                  type: string
+                  nullable: true
+                userComment:
+                  type: string
+                  nullable: true
+              required:
+                - rating
+            examples:
+              PositiveFeedback:
+                $ref: '#/components/examples/FeedbackRequest'
+      responses:
+        '201':
+          description: Feedback submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feedback'
+              examples:
+                FeedbackSubmitted:
+                  $ref: '#/components/examples/FeedbackResponse'
+        '400':
+          description: Invalid feedback request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Caption request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CaptionStatus:
+      type: string
+      description: Current status of the caption generation request lifecycle.
+      enum:
+        - PENDING
+        - PROCESSING
+        - COMPLETED
+        - FAILED
+
+    CaptionMode:
+      type: string
+      description: Requested mode for caption generation.
+      enum:
+        - SHORT
+        - DETAILED
+
+    FeedbackRating:
+      type: string
+      description: User rating rating choice.
+      enum:
+        - POSITIVE
+        - NEGATIVE
+
+    CaptionRequest:
+      type: object
+      description: Representation of a caption generation job request and its results.
+      required:
+        - id
+        - status
+        - originalFilename
+        - imageHash
+        - captionMode
+        - modelName
+        - modelVersion
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique UUID identifier for the request.
+        status:
+          $ref: '#/components/schemas/CaptionStatus'
+        originalFilename:
+          type: string
+          description: Original filename of the uploaded image.
+        imageHash:
+          type: string
+          description: SHA-256 hash string of the uploaded image content.
+        captionMode:
+          $ref: '#/components/schemas/CaptionMode'
+        modelName:
+          type: string
+          description: Model identifier used for inference.
+        modelVersion:
+          type: string
+          description: Pinned model revision / version.
+        generatedCaption:
+          type: string
+          nullable: true
+          description: Raw caption generated by the inference service.
+        editedCaption:
+          type: string
+          nullable: true
+          description: Optional user-edited caption text.
+        inferenceTimeMs:
+          type: integer
+          format: int64
+          nullable: true
+          description: Execution duration of inference in milliseconds.
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO-8601 creation timestamp.
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO-8601 completion timestamp.
+        errorCode:
+          type: string
+          nullable: true
+          description: Stable error code if status is FAILED.
+
+    Feedback:
+      type: object
+      description: User feedback record submitted for a generated caption.
+      required:
+        - id
+        - captionRequestId
+        - rating
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique UUID identifier for the feedback submission.
+        captionRequestId:
+          type: string
+          format: uuid
+          description: UUID of the associated caption request.
+        rating:
+          $ref: '#/components/schemas/FeedbackRating'
+        missingInformation:
+          type: string
+          nullable: true
+          description: User feedback regarding missed visual elements.
+        incorrectInformation:
+          type: string
+          nullable: true
+          description: User feedback regarding hallucinated or incorrect details.
+        userComment:
+          type: string
+          nullable: true
+          description: General feedback comments.
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO-8601 creation timestamp.
+
+    ErrorResponse:
+      type: object
+      description: Standardized error payload returned across all endpoints.
+      required:
+        - timestamp
+        - requestId
+        - code
+        - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO-8601 timestamp of when the error occurred.
+        requestId:
+          type: string
+          description: Correlation ID for request tracing.
+        code:
+          type: string
+          description: Machine-readable error code.
+        message:
+          type: string
+          description: Human-readable error message.
+        details:
+          type: object
+          nullable: true
+          description: Additional contextual details or null.
+
+  examples:
+    CaptionRequestCompleted:
+      summary: Completed caption request response
+      value:
+        id: e4d3c2b1-a098-4765-b432-10fe98765432
+        status: COMPLETED
+        originalFilename: dog-running.jpg
+        imageHash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        captionMode: SHORT
+        modelName: Xenova/vit-gpt2-image-captioning
+        modelVersion: main
+        generatedCaption: a dog running across a green grassy field
+        editedCaption: null
+        inferenceTimeMs: 340
+        createdAt: '2026-08-19T20:00:00.000Z'
+        completedAt: '2026-08-19T20:00:01.200Z'
+        errorCode: null
+    FeedbackRequest:
+      summary: Positive user feedback request
+      value:
+        rating: POSITIVE
+        missingInformation: Could mention the breed of dog
+        incorrectInformation: null
+        userComment: Accurate overall description!
+    FeedbackResponse:
+      summary: Created feedback record response
+      value:
+        id: 77a88b99-c00d-411e-b22f-334455667788
+        captionRequestId: e4d3c2b1-a098-4765-b432-10fe98765432
+        rating: POSITIVE
+        missingInformation: Could mention the breed of dog
+        incorrectInformation: null
+        userComment: Accurate overall description!
+        createdAt: '2026-08-19T20:10:00.000Z'
+    Error400:
+      summary: Standard 400 Bad Request error response
+      value:
+        timestamp: '2026-08-19T20:20:00.000Z'
+        requestId: 123e4567-e89b-12d3-a456-426614174000
+        code: UNSUPPORTED_IMAGE_TYPE
+        message: File headers do not match a valid JPEG or PNG image.
+        details: null

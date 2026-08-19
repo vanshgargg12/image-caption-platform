@@ -1,0 +1,10 @@
+{
+  "status": "NOT_READY",
+  "service": "inference",
+  "model": {
+    "loaded": false,
+    "modelId": "Xenova/vit-gpt2-image-captioning",
+    "modelRevision": "main",
+    "error": null
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "redocly lint openapi/*.yaml",
+    "validate": "npm run lint"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^1.26.0"
+  }
+}

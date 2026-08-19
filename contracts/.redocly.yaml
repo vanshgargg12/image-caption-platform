@@ -1,0 +1,9 @@
+extends:
+  - recommended
+rules:
+  no-enum-type-mismatch: error
+  struct: error
+  security-defined: off
+  no-server-example.com: off
+  info-license: off
+  operation-4xx-response: off

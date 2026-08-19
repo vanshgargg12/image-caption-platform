@@ -1,0 +1,270 @@
+openapi: 3.0.3
+info:
+  title: Image Caption Platform Internal Inference API
+  description: Internal HTTP API exposed by the Node.js Transformers.js inference service. Intended strictly for internal consumption by the Spring Boot backend service. MUST NOT be internet-facing.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3001
+    description: Internal Node.js Inference Service (Local Development)
+
+paths:
+  /internal/health:
+    get:
+      summary: Inference Service Liveness Check
+      description: Confirms that the Node.js process is running. Does not require the model to be loaded.
+      operationId: getInternalHealth
+      responses:
+        '200':
+          description: Process is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: UP
+                  service:
+                    type: string
+                    example: inference
+                required:
+                  - status
+                  - service
+              examples:
+                InternalHealth:
+                  summary: Healthy inference process status
+                  value:
+                    status: UP
+                    service: inference
+
+  /internal/ready:
+    get:
+      summary: Inference Model Readiness Check
+      description: Returns 200 READY when the ONNX model is loaded and ready to process requests. Returns 503 NOT_READY during initialization or model load failures.
+      operationId: getInternalReady
+      responses:
+        '200':
+          description: Model is fully loaded and ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+              examples:
+                ModelReady:
+                  $ref: '#/components/examples/Ready200'
+        '503':
+          description: Model is loading or unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+              examples:
+                ModelNotReady:
+                  $ref: '#/components/examples/Ready503'
+
+  /internal/infer:
+    post:
+      summary: Perform Image Caption Inference
+      description: Accepts a multipart image file and caption mode, runs ONNX model inference, and returns generated caption details.
+      operationId: runInternalInference
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          description: Optional correlation ID for tracing.
+          schema:
+            type: string
+            example: 123e4567-e89b-12d3-a456-426614174000
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: Binary image file (JPEG or PNG, max 10MB).
+                mode:
+                  type: string
+                  default: SHORT
+                  description: Captioning mode. MVP supported value is 'SHORT'.
+              required:
+                - image
+      responses:
+        '200':
+          description: Caption generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceResponse'
+              examples:
+                InferenceSuccess:
+                  $ref: '#/components/examples/Infer200'
+        '400':
+          description: Invalid request parameters, missing file, or unsupported file header
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                InvalidImage:
+                  $ref: '#/components/examples/Error400'
+        '413':
+          description: File size exceeds MAX_IMAGE_SIZE_BYTES
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Model not ready or service busy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                ModelNotReadyError:
+                  $ref: '#/components/examples/Error503'
+        '504':
+          description: Inference execution timed out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ReadinessResponse:
+      type: object
+      description: Payload returned by the readiness endpoint detailing model status.
+      required:
+        - status
+        - service
+        - model
+      properties:
+        status:
+          type: string
+          enum:
+            - READY
+            - NOT_READY
+        service:
+          type: string
+          example: inference
+        model:
+          type: object
+          required:
+            - loaded
+            - modelId
+            - modelRevision
+          properties:
+            loaded:
+              type: boolean
+            modelId:
+              type: string
+              example: Xenova/vit-gpt2-image-captioning
+            modelRevision:
+              type: string
+              example: main
+            error:
+              type: string
+              nullable: true
+
+    InferenceResponse:
+      type: object
+      description: Successful inference result payload.
+      required:
+        - caption
+        - model
+        - modelVersion
+        - mode
+        - inferenceTimeMs
+        - requestId
+      properties:
+        caption:
+          type: string
+          description: Generated text caption.
+        model:
+          type: string
+          description: HuggingFace model repository ID.
+        modelVersion:
+          type: string
+          description: Pinned model revision / commit SHA.
+        mode:
+          type: string
+          example: SHORT
+        inferenceTimeMs:
+          type: integer
+          format: int64
+          description: Duration of ONNX model execution in milliseconds.
+        requestId:
+          type: string
+          description: Correlation identifier for tracing.
+
+    ErrorResponse:
+      type: object
+      description: Standardized error payload.
+      required:
+        - timestamp
+        - requestId
+        - code
+        - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          nullable: true
+
+  examples:
+    Ready200:
+      summary: Model loaded and ready status
+      value:
+        status: READY
+        service: inference
+        model:
+          loaded: true
+          modelId: Xenova/vit-gpt2-image-captioning
+          modelRevision: main
+    Ready503:
+      summary: Model loading or unavailable status
+      value:
+        status: NOT_READY
+        service: inference
+        model:
+          loaded: false
+          modelId: Xenova/vit-gpt2-image-captioning
+          modelRevision: main
+          error: null
+    Infer200:
+      summary: Successful inference response
+      value:
+        caption: a dog running across a green grassy field
+        model: Xenova/vit-gpt2-image-captioning
+        modelVersion: main
+        mode: SHORT
+        inferenceTimeMs: 340
+        requestId: 123e4567-e89b-12d3-a456-426614174000
+    Error400:
+      summary: Unsupported image type error response
+      value:
+        timestamp: '2026-08-19T20:20:00.000Z'
+        requestId: 123e4567-e89b-12d3-a456-426614174000
+        code: UNSUPPORTED_IMAGE_TYPE
+        message: File headers do not match a valid JPEG or PNG image.
+        details: null
+    Error503:
+      summary: Model not ready error response
+      value:
+        timestamp: '2026-08-19T20:20:00.000Z'
+        requestId: 123e4567-e89b-12d3-a456-426614174000
+        code: MODEL_NOT_READY
+        message: Inference service model is not loaded or ready.
+        details: null
