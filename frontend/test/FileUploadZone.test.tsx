@@ -14,7 +14,7 @@ describe('FileUploadZone Component', () => {
   it('renders upload dropzone instructions', () => {
     render(<FileUploadZone onFileSelected={mockOnFileSelected} selectedFile={null} />);
     expect(screen.getByText(/Click to choose image/i)).toBeInTheDocument();
-    expect(screen.getByText(/JPEG or PNG \(Max 10MB\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/JPEG, PNG, or WebP \(Max 10MB\)/i)).toBeInTheDocument();
   });
 
   it('accepts valid JPEG file and invokes callback', () => {
@@ -34,7 +34,7 @@ describe('FileUploadZone Component', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [invalidFile] } });
 
-    expect(screen.getByRole('alert')).toHaveTextContent(/Only JPEG and PNG images are supported/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/Only JPEG, PNG, and WebP images are supported/i);
     expect(mockOnFileSelected).toHaveBeenCalledWith(null);
   });
 
