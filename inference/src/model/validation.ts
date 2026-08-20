@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ImageValidationError } from "./types.js";
 
-const SUPPORTED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png"]);
+const SUPPORTED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
 export function validateImagePath(inputPath: string | undefined | null): string {
   if (!inputPath || inputPath.trim() === "") {
@@ -24,11 +24,11 @@ export function validateImagePath(inputPath: string | undefined | null): string 
   const ext = path.extname(resolvedPath).toLowerCase();
   if (!SUPPORTED_EXTENSIONS.has(ext)) {
     throw new ImageValidationError(
-      `Unsupported file format '${ext}'. Only JPEG (.jpg, .jpeg) and PNG (.png) files are supported.`
+      `Unsupported file format '${ext}'. Only JPEG (.jpg, .jpeg), PNG (.png), and WebP (.webp) files are supported.`
     );
   }
 
-  // Verify file headers (magic bytes) to ensure file is valid JPEG or PNG
+  // Verify file headers (magic bytes) to ensure file is valid JPEG, PNG, or WebP
   try {
     const fd = fs.openSync(resolvedPath, "r");
     const buffer = Buffer.alloc(8);
@@ -39,20 +39,21 @@ export function validateImagePath(inputPath: string | undefined | null): string 
       throw new ImageValidationError(`File is empty or truncated: ${inputPath}`);
     }
 
-    const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8;
     const isPng =
       buffer[0] === 0x89 &&
       buffer[1] === 0x50 &&
       buffer[2] === 0x4e &&
-      buffer[3] === 0x47 &&
-      buffer[4] === 0x0d &&
-      buffer[5] === 0x0a &&
-      buffer[6] === 0x1a &&
-      buffer[7] === 0x0a;
+      buffer[3] === 0x47;
+    const isWebp =
+      buffer[0] === 0x52 &&
+      buffer[1] === 0x49 &&
+      buffer[2] === 0x46 &&
+      buffer[3] === 0x46;
 
-    if (!isJpeg && !isPng) {
+    if (!isJpeg && !isPng && !isWebp) {
       throw new ImageValidationError(
-        `File headers do not match a valid JPEG or PNG image: ${inputPath}`
+        `File headers do not match a valid JPEG, PNG, or WebP image: ${inputPath}`
       );
     }
   } catch (error) {

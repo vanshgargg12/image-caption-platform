@@ -38,19 +38,22 @@ public class ImageValidator {
                 throw new InvalidImageException("Uploaded image file is empty or corrupted.", "EMPTY_FILE");
             }
 
-            boolean isJpeg = (header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8 && (header[2] & 0xFF) == 0xFF;
+            // Standard JPEG Start of Image (SOI) marker: 0xFFD8
+            boolean isJpeg = (header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8;
+            // PNG signature: 0x89504E47
             boolean isPng = (header[0] & 0xFF) == 0x89 &&
                     (header[1] & 0xFF) == 0x50 &&
                     (header[2] & 0xFF) == 0x4E &&
-                    (header[3] & 0xFF) == 0x47 &&
-                    (header[4] & 0xFF) == 0x0D &&
-                    (header[5] & 0xFF) == 0x0A &&
-                    (header[6] & 0xFF) == 0x1A &&
-                    (header[7] & 0xFF) == 0x0A;
+                    (header[3] & 0xFF) == 0x47;
+            // WebP container signature: 0x52494646 ("RIFF")
+            boolean isWebp = (header[0] & 0xFF) == 0x52 &&
+                    (header[1] & 0xFF) == 0x49 &&
+                    (header[2] & 0xFF) == 0x46 &&
+                    (header[3] & 0xFF) == 0x46;
 
-            if (!isJpeg && !isPng) {
+            if (!isJpeg && !isPng && !isWebp) {
                 throw new InvalidImageException(
-                        "File headers do not match a valid JPEG or PNG image.",
+                        "File headers do not match a valid JPEG, PNG, or WebP image.",
                         "UNSUPPORTED_IMAGE_TYPE"
                 );
             }

@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { z } from 'zod';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png'];
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export const fileSchema = z.object({
   file: z
@@ -12,8 +12,8 @@ export const fileSchema = z.object({
     .refine((file) => file.size > 0, 'Selected file is empty.')
     .refine((file) => file.size <= MAX_FILE_SIZE, 'File size exceeds the 10MB maximum limit.')
     .refine(
-      (file) => ACCEPTED_IMAGE_TYPES.includes(file.type) || /\.(jpg|jpeg|png)$/i.test(file.name),
-      'Only JPEG and PNG images are supported.'
+      (file) => ACCEPTED_IMAGE_TYPES.includes(file.type) || /\.(jpg|jpeg|png|webp)$/i.test(file.name),
+      'Only JPEG, PNG, and WebP images are supported.'
     ),
 });
 
@@ -109,7 +109,7 @@ export default function FileUploadZone({ onFileSelected, selectedFile, disabled 
         ref={fileInputRef}
         type="file"
         id="image-upload-input"
-        accept="image/jpeg,image/png"
+        accept="image/jpeg,image/png,image/webp"
         className="sr-only"
         onChange={handleChange}
         disabled={disabled}
@@ -150,7 +150,7 @@ export default function FileUploadZone({ onFileSelected, selectedFile, disabled 
             </svg>
             <div id="upload-instructions" className="text-sm text-gray-600 dark:text-gray-300">
               <span className="font-semibold text-blue-600 dark:text-blue-400">Click to choose image</span> or drag and drop here
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">JPEG or PNG (Max 10MB)</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">JPEG, PNG, or WebP (Max 10MB)</p>
             </div>
           </div>
         </div>
