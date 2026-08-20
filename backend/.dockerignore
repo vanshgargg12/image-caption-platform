@@ -1,0 +1,7 @@
+target
+.mvn
+*.log
+.classpath
+.project
+.settings
+.DS_Store

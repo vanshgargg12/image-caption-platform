@@ -1,0 +1,8 @@
+node_modules
+dist
+.cache
+.model-cache
+coverage
+logs
+*.log
+.DS_Store

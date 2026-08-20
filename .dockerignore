@@ -1,0 +1,11 @@
+node_modules
+.next
+dist
+target
+.cache
+.model-cache
+*.log
+.git
+.vscode
+.idea
+.DS_Store

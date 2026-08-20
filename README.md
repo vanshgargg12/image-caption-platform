@@ -1,102 +1,83 @@
 # Image Caption Platform
 
-Upload an image and receive an AI-generated caption. The platform is a monorepo with a
-Next.js frontend, a Spring Boot public API, and an internal Node.js inference service
-powered by Transformers.js (ONNX-compatible models).
+Upload an image and receive an AI-generated caption. The platform is a monorepo featuring a Next.js App Router frontend, a Spring Boot public backend, a PostgreSQL database, and an internal Node.js inference service powered by Transformers.js (ViT-GPT2 ONNX model).
 
-**This project does not use Python.** Runtime, scripts, tests, evaluation, and deployment
-are TypeScript and Java only.
+**This project does not use Python.** Runtime, scripts, tests, evaluation, and deployment are TypeScript and Java only.
 
-## System Boundaries
+---
 
-| Service    | Stack              | Exposure | Responsibility                          |
-|------------|--------------------|----------|-----------------------------------------|
-| Frontend   | Next.js, React, TS | Public   | Web UI; calls backend API only          |
-| Backend    | Java 21, Spring    | Public   | Public API, validation, orchestration   |
-| Inference  | Node.js, TS        | Internal | Model load and caption generation       |
+## 1. System Boundaries & Architecture
 
 ```
-Browser → Frontend → Backend → Inference
+[ Browser Client ] -> [ Next.js Frontend ] -> [ Spring Boot Backend ] -> [ Node.js Inference Service ]
+                                                      |
+                                                      v
+                                            [ PostgreSQL Database ]
 ```
 
-The browser **never** calls the inference service directly. See
-[docs/decisions/0001-system-boundaries.md](docs/decisions/0001-system-boundaries.md).
+| Service | Stack | Exposure | Responsibility |
+|---|---|---|---|
+| **Frontend** | Next.js 16, React 19, TS, Tailwind CSS | Public (`:3000`) | Web UI; calls backend API only |
+| **Backend** | Java 21, Spring Boot 3.4, JPA, Flyway | Public (`:8080`) | Public API, validation, PostgreSQL persistence |
+| **Inference** | Node.js 20, TS, Transformers.js (ONNX) | Internal (`:3001`) | Model loading & caption generation |
+| **Database** | PostgreSQL 16 Alpine | Internal (`:5432`) | Persistent metadata & user feedback storage |
 
-## Repository Structure
+The browser **never** calls the inference service directly. See [docs/decisions/0001-system-boundaries.md](docs/decisions/0001-system-boundaries.md).
 
-```
-image-caption-platform/
-├── frontend/        Next.js UI
-├── backend/         Spring Boot public API
-├── inference/       Internal Transformers.js service
-├── contracts/       OpenAPI specs and shared schemas
-├── infrastructure/  Docker and deployment (future)
-├── evaluation/      Benchmarks and evaluation (future)
-├── docs/            Product and architecture docs
-├── .env.example     Documented environment variables
-└── README.md
-```
+---
 
-## Prerequisites
+## 2. Docker Containerization & Local Startup
 
-- Node.js 20+ and npm 10+
-- Java 21 LTS and Maven 3.9+
+### Prerequisites
+- Docker Engine 24+ and Docker Compose v2+
+- Recommended RAM: **2GB - 4GB**
 
-Copy environment variables:
+### First-Time Local Startup
+
+1. Copy environment template:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Start the full multi-container platform:
+   ```bash
+   docker compose -f infrastructure/docker-compose.yml up -d --build
+   ```
+
+   > [!NOTE]
+   > **First-Start Model Download**: On initial startup, the inference service container downloads the ViT-GPT2 ONNX model weights (~98MB) into the persistent volume `huggingface_cache`. The backend service waits for `/internal/ready` probe to succeed before accepting requests.
+
+3. Verify running services:
+   ```bash
+   docker compose -f infrastructure/docker-compose.yml ps
+   ```
+
+4. Run automated end-to-end smoke test:
+   ```bash
+   bash infrastructure/smoke-test.sh
+   ```
+
+---
+
+## 3. Development Stack (Exposing DB & Inference Ports)
+
+To expose PostgreSQL (`:5432`) and the Inference Service (`:3001`) to localhost for local debugging:
 
 ```bash
-cp .env.example .env
+docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.dev.yml up -d
 ```
 
-## Run Each Service Independently
+---
 
-### Frontend (port 3000)
+## 4. Documentation Links
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+- [Containerization & Deployment Guide](docs/containerization-and-deployment.md)
+- [API OpenAPI Specifications](contracts/README.md)
+- [Model Feasibility & Benchmarking Report](docs/model-feasibility.md)
+- [Development Guide](docs/development.md)
 
-### Backend (port 8080)
+---
 
-```bash
-cd backend
-mvn spring-boot:run
-curl http://localhost:8080/api/v1/health
-```
+## 5. License & Contributing
 
-### Inference — internal (port 3001)
-
-```bash
-cd inference
-npm install
-npm run dev
-curl http://localhost:3001/internal/health
-curl http://localhost:3001/internal/ready
-```
-
-See [docs/development.md](docs/development.md) for lint, test, and build commands.
-
-## Current Project Status
-
-| Area              | Status                                              |
-|-------------------|-----------------------------------------------------|
-| Monorepo layout   | Done                                                |
-| Frontend scaffold | Minimal page with project name and status placeholder |
-| Backend scaffold  | `GET /api/v1/health` + tests                        |
-| Inference scaffold| `GET /internal/health`, `GET /internal/ready` + tests |
-| Model inference   | Not implemented (`/internal/ready` reports no model) |
-| Image upload API  | Not implemented                                     |
-| Docker / Postgres | Not implemented                                     |
-
-Target model for MVP: `Xenova/vit-gpt2-image-captioning` (pinned revision). Florence-2
-is deferred until the basic end-to-end flow works.
-
-## License
-
-See [LICENSE](LICENSE). A formal license has not been selected yet.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [LICENSE](LICENSE) and [CONTRIBUTING.md](CONTRIBUTING.md).
