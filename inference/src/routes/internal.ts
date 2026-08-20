@@ -4,17 +4,12 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { loadConfig } from "../config.js";
-import { generateCaption } from "../model/caption.js";
+import { ModelRegistry } from "../model/providers/modelRegistry.js";
+import { CaptionMode } from "../model/providers/types.js";
 import { globalInferenceQueue } from "../model/queue.js";
 import { getModelState } from "../model/state.js";
-import {
-  CaptionResult,
-  ImageValidationError,
-} from "../model/types.js";
+import { ImageValidationError } from "../model/types.js";
 import { createErrorResponse, handleInferenceError } from "../utils/errors.js";
-
-const SUPPORTED_MODES = new Set(["SHORT"]);
-const RESERVED_MODES = new Set(["DETAILED", "OCR", "OBJECT_DETECTION"]);
 
 export async function registerInternalRoutes(app: FastifyInstance): Promise<void> {
   app.get("/internal/health", async () => ({
@@ -47,6 +42,7 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
         loaded: true,
         modelId: model.modelId,
         modelRevision: model.modelRevision,
+        availableModels: ModelRegistry.getInstance().listModels(),
       },
     };
   });
@@ -85,6 +81,7 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
       let fileBuffer: Buffer | null = null;
       let originalFilename = "upload.jpg";
       let modeInput = "SHORT";
+      let modelInput: string | undefined = undefined;
 
       const parts = request.parts({
         limits: { fileSize: config.maxImageSizeBytes },
@@ -106,6 +103,8 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
         } else if (part.type === "field") {
           if (part.fieldname === "mode" && typeof part.value === "string") {
             modeInput = part.value.trim().toUpperCase();
+          } else if (part.fieldname === "model" && typeof part.value === "string") {
+            modelInput = part.value.trim();
           }
         }
       }
@@ -131,18 +130,15 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
         );
       }
 
-      // Mode validation
-      if (RESERVED_MODES.has(modeInput)) {
-        throw new ImageValidationError(
-          `Caption mode '${modeInput}' is reserved for future implementation. Supported MVP mode: 'SHORT'.`,
-          "INVALID_CAPTION_MODE"
-        );
-      }
+      // Resolve model from ModelRegistry
+      const captionModel = ModelRegistry.getInstance().getModel(modelInput || config.modelId);
 
-      if (!SUPPORTED_MODES.has(modeInput)) {
+      // Validate mode capability
+      const targetMode = modeInput as CaptionMode;
+      if (!captionModel.supportsMode(targetMode)) {
         throw new ImageValidationError(
-          `Invalid caption mode '${modeInput}'. Supported MVP mode: 'SHORT'.`,
-          "INVALID_CAPTION_MODE"
+          `Model '${captionModel.id}' does not support caption mode '${modeInput}'. Supported modes: ${Array.from(captionModel.capabilities).join(", ")}`,
+          "UNSUPPORTED_CAPTION_MODE"
         );
       }
 
@@ -155,8 +151,8 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
       fs.writeFileSync(tempFilePath, fileBuffer);
 
       // Execute queued inference
-      const result: CaptionResult = await globalInferenceQueue.run(
-        () => generateCaption(tempFilePath!, { config }),
+      const result = await globalInferenceQueue.run(
+        () => captionModel.generate(tempFilePath!, targetMode, { requestId }),
         config.inferenceTimeoutMs
       );
 
@@ -164,8 +160,9 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
         {
           requestId,
           model: result.model,
+          modelVersion: result.modelVersion,
           inferenceTimeMs: result.inferenceTimeMs,
-          mode: modeInput,
+          mode: result.mode,
         },
         "Inference completed successfully"
       );
@@ -174,9 +171,10 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
         caption: result.caption,
         model: result.model,
         modelVersion: result.modelVersion,
-        mode: modeInput,
+        mode: result.mode,
         inferenceTimeMs: result.inferenceTimeMs,
         requestId,
+        details: result.details,
       });
     } catch (error) {
       handleInferenceError(error, request, reply);
@@ -190,5 +188,6 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
         }
       }
     }
-  });
+  }
+);
 }

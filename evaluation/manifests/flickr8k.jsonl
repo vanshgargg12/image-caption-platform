@@ -1,0 +1,1 @@
+{"id":"flickr8k_001","source":"Flickr8k","split":"test","imagePath":"samples/flickr8k_001.jpg","references":["A person riding a mountain bike downhill on a rocky trail."],"tags":["legacy","bike"],"textPresent":false,"lowQuality":false,"novelObject":false,"expectedObjects":["mountain bike","person"],"licenseReference":"Research Only"}

@@ -1,0 +1,1 @@
+{"id":"textcaps_001","source":"TextCaps","split":"val","imagePath":"samples/textcaps_001.jpg","references":["A street sign reading MAIN ST with a red STOP sign underneath."],"tags":["street sign","text"],"textPresent":true,"lowQuality":false,"novelObject":false,"expectedObjects":["street sign","stop sign"],"licenseReference":"CC-BY 4.0"}

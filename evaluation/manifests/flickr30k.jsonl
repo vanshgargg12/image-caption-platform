@@ -1,0 +1,1 @@
+{"id":"flickr30k_001","source":"Flickr30k","split":"test","imagePath":"samples/flickr30k_001.jpg","references":["Two people sitting in a outdoor café drinking coffee under an umbrella."],"tags":["cafe","coffee"],"textPresent":false,"lowQuality":false,"novelObject":false,"expectedObjects":["people","cafe","umbrella"],"licenseReference":"Research Only"}

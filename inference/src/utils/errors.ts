@@ -6,6 +6,7 @@ import {
   InferErrorResponse,
   ModelLoadError,
 } from "../model/types.js";
+import { UnsupportedModeError } from "../model/providers/types.js";
 
 export function createErrorResponse(
   requestId: string,
@@ -28,6 +29,11 @@ export function handleInferenceError(
   reply: FastifyReply
 ): void {
   const requestId = (request.headers["x-request-id"] as string) || request.id || "unknown";
+
+  if (error instanceof UnsupportedModeError) {
+    reply.status(400).send(createErrorResponse(requestId, error.code, error.message));
+    return;
+  }
 
   if (error instanceof ImageValidationError) {
     const statusCode = error.code === "PAYLOAD_TOO_LARGE" ? 413 : 400;

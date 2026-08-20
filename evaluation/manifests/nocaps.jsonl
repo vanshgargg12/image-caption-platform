@@ -1,0 +1,1 @@
+{"id":"nocaps_001","source":"NoCaps","split":"val_out_of_domain","imagePath":"samples/nocaps_001.jpg","references":["An exotic capybara resting beside a tropical palm tree."],"tags":["novel","capybara"],"textPresent":false,"lowQuality":false,"novelObject":true,"expectedObjects":["capybara","palm tree"],"licenseReference":"CC-BY 4.0"}

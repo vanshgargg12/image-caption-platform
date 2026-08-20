@@ -1,0 +1,14 @@
+{
+  "name": "evaluation",
+  "version": "0.1.0",
+  "description": "TypeScript Evaluation Runner for Image Caption Platform Models",
+  "type": "module",
+  "scripts": {
+    "eval": "node --import tsx src/runner.ts",
+    "test": "node --import tsx --test test/**/*.test.ts"
+  },
+  "dependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

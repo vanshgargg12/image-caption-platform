@@ -1,0 +1,1 @@
+{"id":"vizwiz_001","source":"VizWiz-Captions","split":"val","imagePath":"samples/vizwiz_001.jpg","references":["A blurry photo of a soup can label held by a hand.","Quality is low and lighting is dim."],"tags":["accessibility","blurry","can"],"textPresent":true,"lowQuality":true,"novelObject":false,"expectedObjects":["soup can","hand"],"licenseReference":"CC-BY 4.0"}

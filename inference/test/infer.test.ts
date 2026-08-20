@@ -286,8 +286,8 @@ describe("HTTP Internal Inference Service", () => {
 
     assert.equal(response.statusCode, 400);
     const err = response.json<{ code: string; message: string }>();
-    assert.equal(err.code, "INVALID_CAPTION_MODE");
-    assert.match(err.message, /reserved/);
+    assert.equal(err.code, "UNSUPPORTED_CAPTION_MODE");
+    assert.match(err.message, /does not support caption mode/);
   });
 
   it("POST /internal/infer cleans up temporary files on success and failure", async () => {
