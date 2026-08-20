@@ -7,7 +7,7 @@ import { loadConfig } from "../config.js";
 import { ModelRegistry } from "../model/providers/modelRegistry.js";
 import { CaptionMode } from "../model/providers/types.js";
 import { globalInferenceQueue } from "../model/queue.js";
-import { getModelState } from "../model/state.js";
+import { getModelState, initializeModel } from "../model/state.js";
 import { ImageValidationError } from "../model/types.js";
 import { createErrorResponse, handleInferenceError } from "../utils/errors.js";
 
@@ -52,8 +52,17 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
     const requestId =
       (request.headers["x-request-id"] as string) || request.id || randomUUID();
 
-    // Check readiness first
-    const modelState = getModelState();
+    // Ensure model is initialized or wait for ongoing initialization
+    let modelState = getModelState();
+    if (!modelState.loaded) {
+      try {
+        await initializeModel(config);
+        modelState = getModelState();
+      } catch {
+        // Handled below if initialization fails
+      }
+    }
+
     if (!modelState.loaded) {
       reply
         .status(503)

@@ -18,6 +18,8 @@ let currentState: ModelState = {
   error: null,
 };
 
+let initPromise: Promise<void> | null = null;
+
 export function getModelState(): ModelState {
   return currentState;
 }
@@ -27,9 +29,15 @@ export function setModelStateForTesting(state: Partial<ModelState>): void {
     ...currentState,
     ...state,
   };
+  if (state.loaded) {
+    initPromise = Promise.resolve();
+  }
 }
 
 export async function initializeModel(config?: ModelConfig): Promise<void> {
+  if (currentState.loaded) return;
+  if (initPromise) return initPromise;
+
   const cfg = config ?? loadConfig();
 
   currentState = {
@@ -40,14 +48,20 @@ export async function initializeModel(config?: ModelConfig): Promise<void> {
     error: null,
   };
 
-  try {
-    await getOrLoadModel(cfg);
-    currentState.loaded = true;
-    currentState.loading = false;
-    currentState.error = null;
-  } catch (error) {
-    currentState.loaded = false;
-    currentState.loading = false;
-    currentState.error = error instanceof Error ? error.message : String(error);
-  }
+  initPromise = (async () => {
+    try {
+      await getOrLoadModel(cfg);
+      currentState.loaded = true;
+      currentState.loading = false;
+      currentState.error = null;
+    } catch (error) {
+      currentState.loaded = false;
+      currentState.loading = false;
+      currentState.error = error instanceof Error ? error.message : String(error);
+      initPromise = null;
+      throw error;
+    }
+  })();
+
+  return initPromise;
 }
