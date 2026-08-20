@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { env, pipeline } from "@huggingface/transformers";
 import { ModelConfig, ModelLoadError } from "./types.js";
 
@@ -25,22 +27,48 @@ export async function getOrLoadModel(config: ModelConfig): Promise<ImageToTextPi
 
   cachedConfigKey = configKey;
   pipelinePromise = (async () => {
+    const options: Record<string, unknown> = {};
+    if (config.modelRevision) {
+      options.revision = config.modelRevision;
+    }
+
     try {
-      const options: Record<string, unknown> = {};
-      if (config.modelRevision) {
-        options.revision = config.modelRevision;
-      }
       const pipe = await pipeline("image-to-text", config.modelId, options);
       return pipe;
-    } catch (error) {
+    } catch (firstError) {
+      const errMsg = firstError instanceof Error ? firstError.message : String(firstError);
+      
+      // If cached ONNX model file is corrupted (e.g. Protobuf parsing failed), clean up and retry once
+      if (errMsg.includes("Protobuf parsing failed") || errMsg.includes("failed to load") || errMsg.includes("Unexpected end of JSON")) {
+        const modelDir = path.join(config.modelCacheDir, config.modelId);
+        if (fs.existsSync(modelDir)) {
+          try {
+            fs.rmSync(modelDir, { recursive: true, force: true });
+          } catch {
+            // Ignore removal errors
+          }
+        }
+        try {
+          const pipeRetry = await pipeline("image-to-text", config.modelId, options);
+          return pipeRetry;
+        } catch (retryError) {
+          pipelinePromise = null;
+          cachedConfigKey = null;
+          throw new ModelLoadError(
+            `Failed to load image captioning model '${config.modelId}' (revision: ${config.modelRevision}) after cache recovery: ${
+              retryError instanceof Error ? retryError.message : String(retryError)
+            }`,
+            retryError
+          );
+        }
+      }
+
       // Reset cached promise on error so subsequent attempts can retry
       pipelinePromise = null;
       cachedConfigKey = null;
       throw new ModelLoadError(
-        `Failed to load image captioning model '${config.modelId}' (revision: ${config.modelRevision}): ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        error
+        `Failed to load image captioning model '${config.modelId}' (revision: ${config.modelRevision}): ${errMsg}`,
+        firstError
       );
     }
   })();
@@ -63,5 +91,3 @@ export function setModelPipelineForTesting(mockPipe: ImageToTextPipeline | null)
     cachedConfigKey = "TEST_MOCK_KEY";
   }
 }
-
-
