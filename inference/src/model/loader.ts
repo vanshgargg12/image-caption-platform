@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { env, pipeline } from "@huggingface/transformers";
+import { setModelStateForTesting } from "./state.js";
 import { ModelConfig, ModelLoadError } from "./types.js";
 
 // Type for image-to-text pipeline function returned by transformers.js
@@ -34,6 +35,13 @@ export async function getOrLoadModel(config: ModelConfig): Promise<ImageToTextPi
 
     try {
       const pipe = await pipeline("image-to-text", config.modelId, options);
+      setModelStateForTesting({
+        loaded: true,
+        loading: false,
+        modelId: config.modelId,
+        modelRevision: config.modelRevision,
+        error: null,
+      });
       return pipe;
     } catch (firstError) {
       const errMsg = firstError instanceof Error ? firstError.message : String(firstError);
@@ -50,10 +58,22 @@ export async function getOrLoadModel(config: ModelConfig): Promise<ImageToTextPi
         }
         try {
           const pipeRetry = await pipeline("image-to-text", config.modelId, options);
+          setModelStateForTesting({
+            loaded: true,
+            loading: false,
+            modelId: config.modelId,
+            modelRevision: config.modelRevision,
+            error: null,
+          });
           return pipeRetry;
         } catch (retryError) {
           pipelinePromise = null;
           cachedConfigKey = null;
+          setModelStateForTesting({
+            loaded: false,
+            loading: false,
+            error: retryError instanceof Error ? retryError.message : String(retryError),
+          });
           throw new ModelLoadError(
             `Failed to load image captioning model '${config.modelId}' (revision: ${config.modelRevision}) after cache recovery: ${
               retryError instanceof Error ? retryError.message : String(retryError)
@@ -66,6 +86,11 @@ export async function getOrLoadModel(config: ModelConfig): Promise<ImageToTextPi
       // Reset cached promise on error so subsequent attempts can retry
       pipelinePromise = null;
       cachedConfigKey = null;
+      setModelStateForTesting({
+        loaded: false,
+        loading: false,
+        error: errMsg,
+      });
       throw new ModelLoadError(
         `Failed to load image captioning model '${config.modelId}' (revision: ${config.modelRevision}): ${errMsg}`,
         firstError

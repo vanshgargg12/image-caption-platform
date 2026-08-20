@@ -19,17 +19,18 @@ export async function buildServer() {
   });
 
   await registerInternalRoutes(app);
+
+  // Trigger controlled model preload on buildServer
+  initializeModel(config).catch((err) => {
+    console.error("Failed to pre-load model on service startup:", err);
+  });
+
   return app;
 }
 
 async function start() {
   const config = loadConfig();
   const app = await buildServer();
-
-  // Trigger controlled model preload on startup
-  initializeModel(config).catch((err) => {
-    console.error("Failed to pre-load model on service startup:", err);
-  });
 
   await app.listen({ port: config.port, host: "0.0.0.0" });
 }
