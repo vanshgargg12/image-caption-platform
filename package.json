@@ -1,0 +1,22 @@
+{
+  "name": "image-caption-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Image Caption Platform monorepo featuring Next.js frontend, Spring Boot backend, and Node.js ONNX inference service",
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:inference": "npm --prefix inference run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:inference": "npm --prefix inference run build",
+    "test:frontend": "npm --prefix frontend run test",
+    "test:inference": "npm --prefix inference run test",
+    "test:evaluation": "npm --prefix evaluation run test",
+    "test:contracts": "npm --prefix contracts run lint",
+    "test:all": "npm run test:contracts && npm run test:inference && npm run test:frontend && npm run test:evaluation",
+    "eval": "npm --prefix evaluation run eval",
+    "smoke-test": "bash infrastructure/smoke-test.sh",
+    "docker:up": "docker compose -f infrastructure/docker-compose.yml up -d --build",
+    "docker:dev": "docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.dev.yml up -d --build",
+    "docker:down": "docker compose -f infrastructure/docker-compose.yml down"
+  }
+}
