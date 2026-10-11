@@ -73,4 +73,14 @@ class ImageValidatorTest {
         assertNotNull(hash);
         assertEquals(64, hash.length());
     }
+
+    @Test
+    void getFileExtension_resolvesExtensionFromFilenameOrHeader() {
+        assertEquals(".jpg", ImageValidator.getFileExtension("image.jpg", null));
+        assertEquals(".png", ImageValidator.getFileExtension("graphic.png", null));
+        assertEquals(".webp", ImageValidator.getFileExtension("picture.webp", null));
+        assertEquals(".png", ImageValidator.getFileExtension("unknown.tmp", VALID_PNG));
+        assertEquals(".jpg", ImageValidator.getFileExtension("unknown.tmp", VALID_JPEG));
+        assertEquals(".jpg", ImageValidator.getFileExtension(null, VALID_JPEG));
+    }
 }

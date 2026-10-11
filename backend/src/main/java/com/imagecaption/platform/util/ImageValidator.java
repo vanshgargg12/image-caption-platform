@@ -77,6 +77,27 @@ public class ImageValidator {
         return sanitized.isEmpty() ? "upload.jpg" : sanitized;
     }
 
+    public static String getFileExtension(String filename, byte[] header) {
+        if (filename != null) {
+            int lastDot = filename.lastIndexOf('.');
+            if (lastDot >= 0 && lastDot < filename.length() - 1) {
+                String ext = filename.substring(lastDot).toLowerCase();
+                if (ext.equals(".jpg") || ext.equals(".jpeg") || ext.equals(".png") || ext.equals(".webp")) {
+                    return ext;
+                }
+            }
+        }
+        if (header != null && header.length >= 4) {
+            boolean isJpeg = (header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8;
+            boolean isPng = (header[0] & 0xFF) == 0x89 && (header[1] & 0xFF) == 0x50 && (header[2] & 0xFF) == 0x4E && (header[3] & 0xFF) == 0x47;
+            boolean isWebp = (header[0] & 0xFF) == 0x52 && (header[1] & 0xFF) == 0x49 && (header[2] & 0xFF) == 0x46 && (header[3] & 0xFF) == 0x46;
+            if (isPng) return ".png";
+            if (isWebp) return ".webp";
+            if (isJpeg) return ".jpg";
+        }
+        return ".jpg";
+    }
+
     public static String calculateSha256(byte[] bytes) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

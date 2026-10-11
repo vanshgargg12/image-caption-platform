@@ -89,7 +89,8 @@ public class CaptionService {
         try {
             // Write to temporary disk location
             try {
-                tempFile = File.createTempFile("caption_upload_" + requestId + "_", ".tmp");
+                String ext = ImageValidator.getFileExtension(sanitizedFilename, bytes);
+                tempFile = File.createTempFile("caption_upload_" + requestId + "_", ext);
                 try (FileOutputStream fos = new FileOutputStream(tempFile)) {
                     fos.write(bytes);
                 }

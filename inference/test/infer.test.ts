@@ -159,6 +159,37 @@ describe("HTTP Internal Inference Service", () => {
     assert.equal(typeof result.inferenceTimeMs, "number");
   });
 
+  it("POST /internal/infer generates caption successfully for temp files with .tmp extension", async () => {
+    const mockPipe = async () => [{ generated_text: "a cute puppy running in grass" }];
+    setModelPipelineForTesting(mockPipe);
+
+    const { boundary, body } = buildMultipartPayload(
+      [{ name: "mode", value: "SHORT" }],
+      [
+        {
+          name: "image",
+          filename: "caption_upload_12345_.tmp",
+          contentType: "application/octet-stream",
+          data: validJpegHeader,
+        },
+      ]
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/infer",
+      headers: {
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+        "x-request-id": "test-req-tmp-123",
+      },
+      payload: body,
+    });
+
+    assert.equal(response.statusCode, 200);
+    const result = response.json<{ caption: string }>();
+    assert.equal(result.caption, "a cute puppy running in grass");
+  });
+
   it("POST /internal/infer returns 503 when model is unavailable or not ready", async () => {
     setModelStateForTesting({ loaded: false });
 
