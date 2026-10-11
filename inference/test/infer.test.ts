@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import { after, before, beforeEach, describe, it } from "node:test";
 import type { FastifyInstance } from "fastify";
+import sharp from "sharp";
 import { setModelPipelineForTesting } from "../src/model/loader.js";
 import { setModelStateForTesting } from "../src/model/state.js";
 import { buildServer } from "../src/server.js";
@@ -43,9 +44,15 @@ function buildMultipartPayload(
 
 describe("HTTP Internal Inference Service", () => {
   let app: FastifyInstance;
-  const validJpegHeader = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+  let validJpegBuffer: Buffer;
 
   before(async () => {
+    validJpegBuffer = await sharp({
+      create: { width: 64, height: 64, channels: 3, background: { r: 255, g: 0, b: 0 } },
+    })
+      .jpeg()
+      .toBuffer();
+
     app = await buildServer();
   });
 
@@ -126,7 +133,7 @@ describe("HTTP Internal Inference Service", () => {
           name: "image",
           filename: "sample.jpg",
           contentType: "image/jpeg",
-          data: validJpegHeader,
+          data: validJpegBuffer,
         },
       ]
     );
@@ -170,7 +177,7 @@ describe("HTTP Internal Inference Service", () => {
           name: "image",
           filename: "caption_upload_12345_.tmp",
           contentType: "application/octet-stream",
-          data: validJpegHeader,
+          data: validJpegBuffer,
         },
       ]
     );
@@ -200,7 +207,7 @@ describe("HTTP Internal Inference Service", () => {
           name: "image",
           filename: "sample.jpg",
           contentType: "image/jpeg",
-          data: validJpegHeader,
+          data: validJpegBuffer,
         },
       ]
     );
@@ -266,7 +273,7 @@ describe("HTTP Internal Inference Service", () => {
     assert.equal(err.code, "EMPTY_FILE");
   });
 
-  it("POST /internal/infer returns 400 when file content header is invalid/unsupported", async () => {
+  it("POST /internal/infer returns 400 with CORRUPT_IMAGE when file content is invalid", async () => {
     const { boundary, body } = buildMultipartPayload(
       [{ name: "mode", value: "SHORT" }],
       [
@@ -290,7 +297,96 @@ describe("HTTP Internal Inference Service", () => {
 
     assert.equal(response.statusCode, 400);
     const err = response.json<{ code: string }>();
-    assert.equal(err.code, "UNSUPPORTED_IMAGE_TYPE");
+    assert.equal(err.code, "CORRUPT_IMAGE");
+  });
+
+  it("POST /internal/infer returns 400 with CORRUPT_IMAGE for truncated half-length JPEG", async () => {
+    const halfJpeg = validJpegBuffer.subarray(0, Math.floor(validJpegBuffer.length / 2));
+    const { boundary, body } = buildMultipartPayload(
+      [{ name: "mode", value: "SHORT" }],
+      [
+        {
+          name: "image",
+          filename: "truncated.jpg",
+          contentType: "image/jpeg",
+          data: halfJpeg,
+        },
+      ]
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/infer",
+      headers: {
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: body,
+    });
+
+    assert.equal(response.statusCode, 400);
+    const err = response.json<{ code: string }>();
+    assert.equal(err.code, "CORRUPT_IMAGE");
+  });
+
+  it("POST /internal/infer returns 400 with CORRUPT_IMAGE for header-only 8-byte JPEG", async () => {
+    const headerOnly = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+    const { boundary, body } = buildMultipartPayload(
+      [{ name: "mode", value: "SHORT" }],
+      [
+        {
+          name: "image",
+          filename: "header_only.jpg",
+          contentType: "image/jpeg",
+          data: headerOnly,
+        },
+      ]
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/infer",
+      headers: {
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: body,
+    });
+
+    assert.equal(response.statusCode, 400);
+    const err = response.json<{ code: string }>();
+    assert.equal(err.code, "CORRUPT_IMAGE");
+  });
+
+  it("POST /internal/infer returns 400 with CORRUPT_IMAGE for a 10x10 image", async () => {
+    const smallBuffer = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 255, b: 255 } },
+    })
+      .jpeg()
+      .toBuffer();
+
+    const { boundary, body } = buildMultipartPayload(
+      [{ name: "mode", value: "SHORT" }],
+      [
+        {
+          name: "image",
+          filename: "small.jpg",
+          contentType: "image/jpeg",
+          data: smallBuffer,
+        },
+      ]
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/infer",
+      headers: {
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: body,
+    });
+
+    assert.equal(response.statusCode, 400);
+    const err = response.json<{ code: string }>();
+    assert.equal(err.code, "CORRUPT_IMAGE");
   });
 
   it("POST /internal/infer returns 400 for invalid or reserved caption mode", async () => {
@@ -301,7 +397,7 @@ describe("HTTP Internal Inference Service", () => {
           name: "image",
           filename: "sample.jpg",
           contentType: "image/jpeg",
-          data: validJpegHeader,
+          data: validJpegBuffer,
         },
       ]
     );
@@ -334,7 +430,7 @@ describe("HTTP Internal Inference Service", () => {
           name: "image",
           filename: "sample.jpg",
           contentType: "image/jpeg",
-          data: validJpegHeader,
+          data: validJpegBuffer,
         },
       ]
     );
@@ -374,7 +470,7 @@ describe("HTTP Internal Inference Service", () => {
             name: "image",
             filename: "sample.jpg",
             contentType: "image/jpeg",
-            data: validJpegHeader,
+            data: validJpegBuffer,
           },
         ]
       );
@@ -398,5 +494,39 @@ describe("HTTP Internal Inference Service", () => {
     assert.equal(r1.statusCode, 200);
     assert.equal(r2.statusCode, 200);
     assert.equal(maxObservedActive, 1); // Serialized max 1 active inference call
+  });
+
+  it("POST /internal/infer returns 500 with CAPTION_GENERATION_FAILED when model pipeline throws", async () => {
+    const mockPipe = async () => {
+      throw new Error("Internal pipeline error");
+    };
+    setModelPipelineForTesting(mockPipe);
+
+    const { boundary, body } = buildMultipartPayload(
+      [{ name: "mode", value: "SHORT" }],
+      [
+        {
+          name: "image",
+          filename: "sample.jpg",
+          contentType: "image/jpeg",
+          data: validJpegBuffer,
+        },
+      ]
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/internal/infer",
+      headers: {
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+        "x-request-id": "test-gen-failure",
+      },
+      payload: body,
+    });
+
+    assert.equal(response.statusCode, 500);
+    const err = response.json<{ code: string; message: string }>();
+    assert.equal(err.code, "CAPTION_GENERATION_FAILED");
+    assert.equal(err.message, "Failed to generate caption for the provided image.");
   });
 });
