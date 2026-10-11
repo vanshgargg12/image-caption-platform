@@ -1,10 +1,13 @@
 package com.imagecaption.platform.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.imagecaption.platform.domain.CaptionRequestEntity;
+import com.imagecaption.platform.domain.CaptionStatus;
 import com.imagecaption.platform.domain.FeedbackRating;
 import com.imagecaption.platform.dto.FeedbackRequestDto;
 import com.imagecaption.platform.provider.CaptionProvider;
 import com.imagecaption.platform.provider.MockCaptionProvider;
+import com.imagecaption.platform.repository.CaptionRequestRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,8 +20,16 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
+import javax.imageio.ImageIO;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -31,7 +42,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(locations = "classpath:application-test.properties")
 class CaptionIntegrationTest {
 
-    private static final byte[] VALID_JPEG = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10, 0x4A, 0x46};
+    private static final byte[] VALID_JPEG = createRealJpeg();
+
+    private static byte[] createRealJpeg() {
+        try {
+            BufferedImage image = new BufferedImage(32, 32, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = image.createGraphics();
+            g.setColor(Color.BLUE);
+            g.fillRect(0, 0, 32, 32);
+            g.dispose();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", baos);
+            return baos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -41,6 +67,9 @@ class CaptionIntegrationTest {
 
     @Autowired
     private CaptionProvider captionProvider;
+
+    @Autowired
+    private CaptionRequestRepository captionRequestRepository;
 
     private MockCaptionProvider mockProvider;
 
@@ -140,5 +169,51 @@ class CaptionIntegrationTest {
         mockMvc.perform(multipart("/api/v1/captions").file(file))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("INFERENCE_SERVICE_UNAVAILABLE"));
+
+        List<CaptionRequestEntity> failedRequests = captionRequestRepository.findAll().stream()
+                .filter(r -> "fail.jpg".equals(r.getOriginalFilename()))
+                .toList();
+        assertThat(failedRequests).hasSize(1);
+        CaptionRequestEntity failedRequest = failedRequests.get(0);
+        assertThat(failedRequest.getStatus()).isEqualTo(CaptionStatus.FAILED);
+        assertThat(failedRequest.getErrorCode()).isEqualTo("INFERENCE_SERVICE_UNAVAILABLE");
+    }
+
+    @Test
+    void uploadImage_corruptImageFromInference_returns400AndPersistsFailedRow() throws Exception {
+        mockProvider.setSimulateInvalidImage(true, "CORRUPT_IMAGE");
+
+        MockMultipartFile file = new MockMultipartFile("image", "corrupt.jpg", "image/jpeg", VALID_JPEG);
+
+        mockMvc.perform(multipart("/api/v1/captions").file(file))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CORRUPT_IMAGE"));
+
+        List<CaptionRequestEntity> failedRequests = captionRequestRepository.findAll().stream()
+                .filter(r -> "corrupt.jpg".equals(r.getOriginalFilename()))
+                .toList();
+        assertThat(failedRequests).hasSize(1);
+        CaptionRequestEntity failedRequest = failedRequests.get(0);
+        assertThat(failedRequest.getStatus()).isEqualTo(CaptionStatus.FAILED);
+        assertThat(failedRequest.getErrorCode()).isEqualTo("CORRUPT_IMAGE");
+    }
+
+    @Test
+    void uploadImage_unsupportedCaptionModeFromInference_returns400AndPersistsFailedRow() throws Exception {
+        mockProvider.setSimulateInvalidImage(true, "UNSUPPORTED_CAPTION_MODE");
+
+        MockMultipartFile file = new MockMultipartFile("image", "badmode.jpg", "image/jpeg", VALID_JPEG);
+
+        mockMvc.perform(multipart("/api/v1/captions").file(file))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_CAPTION_MODE"));
+
+        List<CaptionRequestEntity> failedRequests = captionRequestRepository.findAll().stream()
+                .filter(r -> "badmode.jpg".equals(r.getOriginalFilename()))
+                .toList();
+        assertThat(failedRequests).hasSize(1);
+        CaptionRequestEntity failedRequest = failedRequests.get(0);
+        assertThat(failedRequest.getStatus()).isEqualTo(CaptionStatus.FAILED);
+        assertThat(failedRequest.getErrorCode()).isEqualTo("UNSUPPORTED_CAPTION_MODE");
     }
 }

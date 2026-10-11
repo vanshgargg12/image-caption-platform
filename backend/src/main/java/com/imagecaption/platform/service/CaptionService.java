@@ -49,7 +49,9 @@ public class CaptionService {
         this.defaultModelVersion = defaultModelVersion;
     }
 
-    @Transactional
+    // Method is intentionally NOT annotated with @Transactional so that entity status updates
+    // (PENDING -> PROCESSING -> FAILED) are committed independently to the database and not
+    // rolled back when a runtime exception is thrown to the API caller upon failure.
     public CaptionRequestDto processCaptionRequest(MultipartFile imageFile, CaptionMode captionMode) {
         CaptionMode mode = captionMode != null ? captionMode : CaptionMode.SHORT;
 

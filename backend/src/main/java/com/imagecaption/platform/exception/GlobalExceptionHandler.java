@@ -63,6 +63,10 @@ public class GlobalExceptionHandler {
             status = HttpStatus.GATEWAY_TIMEOUT;
         } else if (e.getStatusCode() == 503 || "MODEL_NOT_READY".equals(e.getErrorCode())) {
             status = HttpStatus.SERVICE_UNAVAILABLE;
+        } else if (e.getStatusCode() == 400 || "CLIENT_ERROR".equals(e.getErrorCode())
+                || "CORRUPT_IMAGE".equals(e.getErrorCode())
+                || "UNSUPPORTED_CAPTION_MODE".equals(e.getErrorCode())) {
+            status = HttpStatus.BAD_REQUEST;
         } else {
             status = HttpStatus.INTERNAL_SERVER_ERROR;
         }

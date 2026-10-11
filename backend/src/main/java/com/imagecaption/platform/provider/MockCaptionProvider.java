@@ -17,6 +17,7 @@ public class MockCaptionProvider implements CaptionProvider {
     private boolean simulateFailure = false;
     private boolean simulateTimeout = false;
     private boolean simulateInvalidImage = false;
+    private String simulatedInvalidImageCode = "UNSUPPORTED_IMAGE_TYPE";
     private String mockCaption = "a mock generated caption of an image";
     private String modelName = "Xenova/vit-gpt2-image-captioning";
     private String modelVersion = "main";
@@ -32,7 +33,7 @@ public class MockCaptionProvider implements CaptionProvider {
     @Override
     public InferenceResult generateCaption(File imageFile, CaptionMode mode) {
         if (simulateInvalidImage) {
-            throw new InvalidImageException("File headers do not match a valid JPEG or PNG image.", "UNSUPPORTED_IMAGE_TYPE");
+            throw new InvalidImageException("Inference service rejected the input: " + simulatedInvalidImageCode, simulatedInvalidImageCode);
         }
         if (simulateTimeout) {
             throw new InferenceServiceException("Inference request timed out", "INFERENCE_TIMEOUT", 504);
@@ -60,7 +61,12 @@ public class MockCaptionProvider implements CaptionProvider {
     }
 
     public void setSimulateInvalidImage(boolean simulateInvalidImage) {
+        setSimulateInvalidImage(simulateInvalidImage, "UNSUPPORTED_IMAGE_TYPE");
+    }
+
+    public void setSimulateInvalidImage(boolean simulateInvalidImage, String code) {
         this.simulateInvalidImage = simulateInvalidImage;
+        this.simulatedInvalidImageCode = (code != null && !code.isBlank()) ? code : "UNSUPPORTED_IMAGE_TYPE";
     }
 
     public void setMockCaption(String mockCaption) {

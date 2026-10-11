@@ -76,6 +76,10 @@ paths:
               examples:
                 UnsupportedImageType:
                   $ref: '#/components/examples/Error400'
+                CorruptImage:
+                  $ref: '#/components/examples/Error400CorruptImage'
+                UnsupportedCaptionMode:
+                  $ref: '#/components/examples/Error400UnsupportedCaptionMode'
         '413':
           description: Payload too large
           content:
@@ -325,7 +329,7 @@ components:
           description: Correlation ID for request tracing.
         code:
           type: string
-          description: Machine-readable error code.
+          description: Machine-readable error code (e.g. UNSUPPORTED_IMAGE_TYPE, EMPTY_FILE, CORRUPT_IMAGE, UNSUPPORTED_CAPTION_MODE).
         message:
           type: string
           description: Human-readable error message.
@@ -375,4 +379,20 @@ components:
         requestId: 123e4567-e89b-12d3-a456-426614174000
         code: UNSUPPORTED_IMAGE_TYPE
         message: File headers do not match a valid JPEG or PNG image.
+        details: null
+    Error400CorruptImage:
+      summary: Corrupt or truncated image error response
+      value:
+        timestamp: '2026-08-19T20:20:00.000Z'
+        requestId: 123e4567-e89b-12d3-a456-426614174000
+        code: CORRUPT_IMAGE
+        message: Image is corrupt, truncated, or not a valid JPEG/PNG/WebP.
+        details: null
+    Error400UnsupportedCaptionMode:
+      summary: Unsupported caption mode error response
+      value:
+        timestamp: '2026-08-19T20:20:00.000Z'
+        requestId: 123e4567-e89b-12d3-a456-426614174000
+        code: UNSUPPORTED_CAPTION_MODE
+        message: Caption mode is not supported.
         details: null
