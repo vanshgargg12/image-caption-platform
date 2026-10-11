@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import {
+  CaptionGenerationError,
   ConcurrencyLimitError,
   ImageValidationError,
   InferenceTimeoutError,
@@ -69,6 +70,19 @@ export function handleInferenceError(
           requestId,
           "MODEL_NOT_READY",
           "Image captioning model is not loaded or failed to initialize."
+        )
+      );
+    return;
+  }
+
+  if (error instanceof CaptionGenerationError) {
+    reply
+      .status(500)
+      .send(
+        createErrorResponse(
+          requestId,
+          "CAPTION_GENERATION_FAILED",
+          "Failed to generate caption for the provided image."
         )
       );
     return;
