@@ -100,6 +100,24 @@ class ImageValidatorTest {
     }
 
     @Test
+    void validateImageFile_truncatedWebpHeaderThrowsException() {
+        byte[] truncatedWebp = new byte[]{'R', 'I', 'F', 'F', 0, 0, 0, 0}; // 8 bytes, missing WEBP
+        MockMultipartFile truncatedWebpFile = new MockMultipartFile("image", "truncated.webp", "image/webp", truncatedWebp);
+        InvalidImageException ex = assertThrows(InvalidImageException.class,
+                () -> ImageValidator.validateImageFile(truncatedWebpFile, 10 * 1024 * 1024));
+        assertEquals("UNSUPPORTED_IMAGE_TYPE", ex.getCode());
+    }
+
+    @Test
+    void validateImageFile_truncatedPngHeaderThrowsException() {
+        byte[] truncatedPng = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47}; // 4 bytes, missing remaining 4 bytes of PNG signature
+        MockMultipartFile truncatedPngFile = new MockMultipartFile("image", "truncated.png", "image/png", truncatedPng);
+        InvalidImageException ex = assertThrows(InvalidImageException.class,
+                () -> ImageValidator.validateImageFile(truncatedPngFile, 10 * 1024 * 1024));
+        assertEquals("UNSUPPORTED_IMAGE_TYPE", ex.getCode());
+    }
+
+    @Test
     void validateImageFile_oversizedFileThrowsException() {
         MockMultipartFile file = new MockMultipartFile("image", "large.jpg", "image/jpeg", VALID_JPEG);
         PayloadTooLargeException ex = assertThrows(PayloadTooLargeException.class,
