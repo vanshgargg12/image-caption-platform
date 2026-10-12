@@ -32,7 +32,7 @@ public class ImageValidator {
 
         try (InputStream inputStream = file.getInputStream()) {
             byte[] header = new byte[12];
-            int bytesRead = inputStream.read(header, 0, 12);
+            int bytesRead = inputStream.readNBytes(header, 0, 12);
 
             if (bytesRead < 4) {
                 throw new InvalidImageException("Uploaded image file is empty or corrupted.", "EMPTY_FILE");

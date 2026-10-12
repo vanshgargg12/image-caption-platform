@@ -65,6 +65,10 @@ public class TransformersJsCaptionProvider implements CaptionProvider {
         this(baseUrl, connectTimeout, readTimeout, maxRetries, new ObjectMapper());
     }
 
+    TransformersJsCaptionProvider(RestClient restClient, int maxRetries) {
+        this(restClient, maxRetries, new ObjectMapper());
+    }
+
     TransformersJsCaptionProvider(RestClient restClient, int maxRetries, ObjectMapper objectMapper) {
         this.restClient = restClient;
         this.maxRetries = Math.max(1, maxRetries);
@@ -109,10 +113,10 @@ public class TransformersJsCaptionProvider implements CaptionProvider {
                             if (!bodyStr.isBlank()) {
                                 try {
                                     JsonNode root = objectMapper.readTree(bodyStr);
-                                    if (root.has("code") && !root.get("code").asText().isBlank()) {
+                                    if (root.hasNonNull("code") && !root.get("code").asText().isBlank()) {
                                         code = root.get("code").asText();
                                     }
-                                    if (root.has("message") && !root.get("message").asText().isBlank()) {
+                                    if (root.hasNonNull("message") && !root.get("message").asText().isBlank()) {
                                         message = root.get("message").asText();
                                     }
                                 } catch (Exception ignored) {
@@ -133,10 +137,10 @@ public class TransformersJsCaptionProvider implements CaptionProvider {
                             if (!bodyStr.isBlank()) {
                                 try {
                                     JsonNode root = objectMapper.readTree(bodyStr);
-                                    if (root.has("code") && !root.get("code").asText().isBlank()) {
+                                    if (root.hasNonNull("code") && !root.get("code").asText().isBlank()) {
                                         code = root.get("code").asText();
                                     }
-                                    if (root.has("message") && !root.get("message").asText().isBlank()) {
+                                    if (root.hasNonNull("message") && !root.get("message").asText().isBlank()) {
                                         message = root.get("message").asText();
                                     }
                                 } catch (Exception ignored) {
@@ -170,6 +174,10 @@ public class TransformersJsCaptionProvider implements CaptionProvider {
                 // DO NOT RETRY 4xx client validation errors
                 log.warn("Non-retryable client error during inference [requestId={}]: {}", requestId, e.getMessage());
                 throw e;
+            } catch (org.springframework.web.client.HttpClientErrorException e) {
+                // DO NOT RETRY any 4xx client errors
+                log.warn("Non-retryable 4xx client error during inference [requestId={}]: {}", requestId, e.getMessage());
+                throw e;
             } catch (InferenceServiceException e) {
                 if ("CAPTION_GENERATION_FAILED".equals(e.getErrorCode())) {
                     log.warn("Deterministic caption generation failure from inference service [requestId={}]: {}", requestId, e.getMessage());
@@ -183,11 +191,12 @@ public class TransformersJsCaptionProvider implements CaptionProvider {
                     throw e; // DO NOT RETRY
                 }
             } catch (ResourceAccessException e) {
+                // Retry only on connection errors
                 lastException = e;
                 log.warn("Transient connection failure contacting inference service (attempt {}/{}): {}", attempts, maxRetries, e.getMessage());
-            } catch (Exception e) {
-                lastException = e;
-                log.warn("Unexpected failure contacting inference service (attempt {}/{}): {}", attempts, maxRetries, e.getMessage());
+            } catch (RuntimeException e) {
+                log.warn("Non-retryable unexpected failure during inference [requestId={}]: {}", requestId, e.getMessage());
+                throw e;
             }
         }
 

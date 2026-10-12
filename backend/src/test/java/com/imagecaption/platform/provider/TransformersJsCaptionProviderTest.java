@@ -130,6 +130,125 @@ class TransformersJsCaptionProviderTest {
     }
 
     @Test
+    void generateCaption_400WithUnparseableBody_fallsBackToClientError() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:3001");
+        MockRestServiceServer mockServer = MockRestServiceServer.bindTo(builder).build();
+        TransformersJsCaptionProvider provider = new TransformersJsCaptionProvider(builder.build(), 3, objectMapper);
+
+        mockServer.expect(requestTo("http://localhost:3001/internal/infer"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .body("Bad Request - not json"));
+
+        InvalidImageException ex = assertThrows(InvalidImageException.class,
+                () -> provider.generateCaption(sampleFile, CaptionMode.SHORT));
+
+        assertEquals("CLIENT_ERROR", ex.getCode());
+        mockServer.verify();
+    }
+
+    @Test
+    void generateCaption_400WithUnsupportedCaptionMode_doesNotRetry() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:3001");
+        MockRestServiceServer mockServer = MockRestServiceServer.bindTo(builder).build();
+        TransformersJsCaptionProvider provider = new TransformersJsCaptionProvider(builder.build(), 3, objectMapper);
+
+        mockServer.expect(requestTo("http://localhost:3001/internal/infer"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"code\":\"UNSUPPORTED_CAPTION_MODE\",\"message\":\"Unsupported caption mode\"}"));
+
+        InvalidImageException ex = assertThrows(InvalidImageException.class,
+                () -> provider.generateCaption(sampleFile, CaptionMode.SHORT));
+
+        assertEquals("UNSUPPORTED_CAPTION_MODE", ex.getCode());
+        mockServer.verify();
+    }
+
+    @Test
+    void generateCaption_500InternalServerError_doesNotRetry() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:3001");
+        MockRestServiceServer mockServer = MockRestServiceServer.bindTo(builder).build();
+        TransformersJsCaptionProvider provider = new TransformersJsCaptionProvider(builder.build(), 3, objectMapper);
+
+        mockServer.expect(requestTo("http://localhost:3001/internal/infer"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"code\":\"INTERNAL_SERVER_ERROR\",\"message\":\"Crash\"}"));
+
+        InferenceServiceException ex = assertThrows(InferenceServiceException.class,
+                () -> provider.generateCaption(sampleFile, CaptionMode.SHORT));
+
+        assertEquals("INTERNAL_SERVER_ERROR", ex.getErrorCode());
+        mockServer.verify();
+    }
+
+    @Test
+    void generateCaption_503ServiceUnavailable_retriesMaxAttempts() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:3001");
+        MockRestServiceServer mockServer = MockRestServiceServer.bindTo(builder).build();
+        TransformersJsCaptionProvider provider = new TransformersJsCaptionProvider(builder.build(), 2, objectMapper);
+
+        mockServer.expect(requestTo("http://localhost:3001/internal/infer"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        mockServer.expect(requestTo("http://localhost:3001/internal/infer"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        InferenceServiceException ex = assertThrows(InferenceServiceException.class,
+                () -> provider.generateCaption(sampleFile, CaptionMode.SHORT));
+
+        assertEquals("INFERENCE_SERVICE_UNAVAILABLE", ex.getErrorCode());
+        mockServer.verify();
+    }
+
+    @Test
+    void generateCaption_504GatewayTimeout_retriesMaxAttempts() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:3001");
+        MockRestServiceServer mockServer = MockRestServiceServer.bindTo(builder).build();
+        TransformersJsCaptionProvider provider = new TransformersJsCaptionProvider(builder.build(), 2, objectMapper);
+
+        mockServer.expect(requestTo("http://localhost:3001/internal/infer"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.GATEWAY_TIMEOUT));
+
+        mockServer.expect(requestTo("http://localhost:3001/internal/infer"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.GATEWAY_TIMEOUT));
+
+        InferenceServiceException ex = assertThrows(InferenceServiceException.class,
+                () -> provider.generateCaption(sampleFile, CaptionMode.SHORT));
+
+        assertEquals("INFERENCE_SERVICE_UNAVAILABLE", ex.getErrorCode());
+        mockServer.verify();
+    }
+
+    @Test
+    void generateCaption_503ThenSuccess_retriesAndSucceeds() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:3001");
+        MockRestServiceServer mockServer = MockRestServiceServer.bindTo(builder).build();
+        TransformersJsCaptionProvider provider = new TransformersJsCaptionProvider(builder.build(), 2, objectMapper);
+
+        mockServer.expect(requestTo("http://localhost:3001/internal/infer"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        mockServer.expect(requestTo("http://localhost:3001/internal/infer"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("{\"caption\":\"a running puppy\",\"model\":\"model\",\"modelVersion\":\"main\",\"mode\":\"SHORT\",\"inferenceTimeMs\":150,\"requestId\":\"req-1\"}", MediaType.APPLICATION_JSON));
+
+        InferenceResult result = provider.generateCaption(sampleFile, CaptionMode.SHORT);
+        assertNotNull(result);
+        assertEquals("a running puppy", result.caption());
+        mockServer.verify();
+    }
+
+    @Test
     void generateCaption_success() {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:3001");
         MockRestServiceServer mockServer = MockRestServiceServer.bindTo(builder).build();

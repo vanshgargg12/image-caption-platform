@@ -113,6 +113,30 @@ class CaptionServiceTest {
     }
 
     @Test
+    void processCaptionRequest_providerThrowsCorruptImage_savesFailedEntity() {
+        MockMultipartFile file = new MockMultipartFile("image", "corrupt.jpg", "image/jpeg", VALID_JPEG);
+
+        CaptionProvider failingProvider = (f, m) -> {
+            throw new InvalidImageException("Image is corrupt", "CORRUPT_IMAGE");
+        };
+        CaptionService service = new CaptionService(repository, failingProvider, "10MB", "model", "version");
+
+        when(repository.save(any(CaptionRequestEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InvalidImageException ex = assertThrows(InvalidImageException.class,
+                () -> service.processCaptionRequest(file, CaptionMode.SHORT));
+        assertEquals("CORRUPT_IMAGE", ex.getCode());
+
+        ArgumentCaptor<CaptionRequestEntity> captor = ArgumentCaptor.forClass(CaptionRequestEntity.class);
+        verify(repository, atLeastOnce()).save(captor.capture());
+
+        CaptionRequestEntity lastSaved = captor.getValue();
+        assertEquals(CaptionStatus.FAILED, lastSaved.getStatus());
+        assertEquals("CORRUPT_IMAGE", lastSaved.getErrorCode());
+        assertNotNull(lastSaved.getCompletedAt());
+    }
+
+    @Test
     void processCaptionRequest_providerThrowsInferenceServiceException_savesFailedEntity() {
         MockMultipartFile file = new MockMultipartFile("image", "dog.jpg", "image/jpeg", VALID_JPEG);
 

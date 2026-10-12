@@ -84,13 +84,39 @@ class CaptionControllerTest {
     @Test
     void createCaptionRequest_invalidImageReturns400() throws Exception {
         when(captionService.processCaptionRequest(any(), any()))
-                .thenThrow(new InvalidImageException("File headers do not match a valid JPEG or PNG image.", "UNSUPPORTED_IMAGE_TYPE"));
+                .thenThrow(new InvalidImageException("File headers do not match a valid JPEG, PNG, or WebP image.", "UNSUPPORTED_IMAGE_TYPE"));
 
         MockMultipartFile file = new MockMultipartFile("image", "bad.txt", "text/plain", "invalid".getBytes());
 
         mockMvc.perform(multipart("/api/v1/captions").file(file))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_IMAGE_TYPE"));
+    }
+
+    @Test
+    void createCaptionRequest_corruptImageReturns400() throws Exception {
+        when(captionService.processCaptionRequest(any(), any()))
+                .thenThrow(new InvalidImageException("Image is corrupt, truncated, or not a valid JPEG/PNG/WebP.", "CORRUPT_IMAGE"));
+
+        MockMultipartFile file = new MockMultipartFile("image", "corrupt.jpg", "image/jpeg", VALID_JPEG);
+
+        mockMvc.perform(multipart("/api/v1/captions").file(file))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CORRUPT_IMAGE"))
+                .andExpect(jsonPath("$.message").value("Image is corrupt, truncated, or not a valid JPEG/PNG/WebP."));
+    }
+
+    @Test
+    void createCaptionRequest_unsupportedCaptionModeReturns400() throws Exception {
+        when(captionService.processCaptionRequest(any(), any()))
+                .thenThrow(new InvalidImageException("Caption mode is not supported.", "UNSUPPORTED_CAPTION_MODE"));
+
+        MockMultipartFile file = new MockMultipartFile("image", "valid.jpg", "image/jpeg", VALID_JPEG);
+
+        mockMvc.perform(multipart("/api/v1/captions").file(file))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_CAPTION_MODE"))
+                .andExpect(jsonPath("$.message").value("Caption mode is not supported."));
     }
 
     @Test
