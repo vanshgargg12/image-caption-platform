@@ -2,19 +2,66 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { z } from 'zod';
+import { isValidImageSignature, decodeImageDimensions } from '../lib/validation/imageSignature';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export const fileSchema = z.object({
   file: z
-    .custom<File>((val) => val instanceof File, 'Please select an image file.')
+    .custom<File>((val) => typeof File !== 'undefined' && val instanceof File, 'Please select an image file.')
     .refine((file) => file.size > 0, 'Selected file is empty.')
     .refine((file) => file.size <= MAX_FILE_SIZE, 'File size exceeds the 10MB maximum limit.')
     .refine(
       (file) => ACCEPTED_IMAGE_TYPES.includes(file.type) || /\.(jpg|jpeg|png|webp)$/i.test(file.name),
       'Only JPEG, PNG, and WebP images are supported.'
-    ),
+    )
+    .superRefine(async (file, ctx) => {
+      // Skip deep byte inspection if basic checks failed
+      if (!file || file.size === 0 || file.size > MAX_FILE_SIZE) {
+        return;
+      }
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type) && !/\.(jpg|jpeg|png|webp)$/i.test(file.name)) {
+        return;
+      }
+
+      // 1. Read first 12 bytes and verify JPEG/PNG/WebP signatures
+      try {
+        const header = await file.slice(0, 12).arrayBuffer();
+        if (!isValidImageSignature(header)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Selected file is not a real JPEG/PNG/WebP image.',
+          });
+          return;
+        }
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Failed to read image bytes; image is corrupt.',
+        });
+        return;
+      }
+
+      // 2. Decode the image with createImageBitmap (or Image element fallback)
+      const dimensions = await decodeImageDimensions(file);
+      if (!dimensions) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Failed to decode image; image is corrupt.',
+        });
+        return;
+      }
+
+      // 3. Reject if width or height is below 32 px
+      if (dimensions.width < 32 || dimensions.height < 32) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Image dimensions are too small (minimum 32x32 px); image is too small.',
+        });
+        return;
+      }
+    }),
 });
 
 interface FileUploadZoneProps {
@@ -43,13 +90,16 @@ export default function FileUploadZone({ onFileSelected, selectedFile, disabled 
   }, [previewUrl]);
 
   const validateAndProcessFile = useCallback(
-    (file: File) => {
+    async (file: File) => {
       setError(null);
-      const validation = fileSchema.safeParse({ file });
+      const validation = await fileSchema.safeParseAsync({ file });
       if (!validation.success) {
         const firstError = validation.error.errors[0]?.message || 'Invalid image file.';
         setError(firstError);
         onFileSelected(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
         return;
       }
       onFileSelected(file);
@@ -76,14 +126,14 @@ export default function FileUploadZone({ onFileSelected, selectedFile, disabled 
     if (disabled) return;
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      validateAndProcessFile(e.dataTransfer.files[0]);
+      void validateAndProcessFile(e.dataTransfer.files[0]);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
     if (e.target.files && e.target.files[0]) {
-      validateAndProcessFile(e.target.files[0]);
+      void validateAndProcessFile(e.target.files[0]);
     }
   };
 

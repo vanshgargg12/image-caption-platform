@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import FileUploadZone from '../components/FileUploadZone';
 import CaptionResultCard from '../components/CaptionResultCard';
 import { CaptionMode, CaptionRequest, ApiError } from '../lib/types/caption';
-import { submitCaptionRequest } from '../lib/api/captionClient';
+import { submitCaptionRequest, getFriendlyErrorMessage } from '../lib/api/captionClient';
 
 export default function HomePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -130,7 +130,7 @@ export default function HomePage() {
       {apiError && (
         <div role="alert" className="p-6 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 rounded-lg space-y-3 text-red-900 dark:text-red-200">
           <h3 className="text-base font-bold">Caption Request Failed</h3>
-          <p className="text-sm">{apiError.message}</p>
+          <p className="text-sm">{getFriendlyErrorMessage(apiError.code, apiError.message)}</p>
           <div className="text-xs text-red-700 dark:text-red-300 space-y-1">
             <p>Error Code: {apiError.code}</p>
             {apiError.requestId && <p>Request Trace ID: {apiError.requestId}</p>}
