@@ -18,19 +18,24 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
   }));
 
   app.get("/internal/ready", async (_request: FastifyRequest, reply: FastifyReply) => {
-    const model = getModelState();
+    const config = loadConfig();
+    const defaultModel = getModelState(config.modelId);
+    const registry = ModelRegistry.getInstance();
+    const registeredModels = registry.listModels();
+    const modelsState = registeredModels.map((m) => getModelState(m.id));
 
-    if (!model.loaded) {
+    if (!defaultModel.loaded) {
       reply.status(503);
       return {
         status: "NOT_READY",
         service: "inference",
         model: {
           loaded: false,
-          modelId: model.modelId,
-          modelRevision: model.modelRevision,
-          error: model.error,
+          modelId: defaultModel.modelId,
+          modelRevision: defaultModel.modelRevision,
+          error: defaultModel.error,
         },
+        models: modelsState,
       };
     }
 
@@ -40,10 +45,11 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
       service: "inference",
       model: {
         loaded: true,
-        modelId: model.modelId,
-        modelRevision: model.modelRevision,
-        availableModels: ModelRegistry.getInstance().listModels(),
+        modelId: defaultModel.modelId,
+        modelRevision: defaultModel.modelRevision,
+        availableModels: registeredModels,
       },
+      models: modelsState,
     };
   });
 
