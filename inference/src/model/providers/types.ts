@@ -7,7 +7,15 @@ export type CaptionMode =
 
 export interface GenerateOptions {
   maxNewTokens?: number;
+  max_new_tokens?: number;
+  numBeams?: number;
+  num_beams?: number;
+  noRepeatNgramSize?: number;
+  no_repeat_ngram_size?: number;
+  repetitionPenalty?: number;
+  repetition_penalty?: number;
   doSample?: boolean;
+  do_sample?: boolean;
   requestId?: string;
 }
 

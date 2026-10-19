@@ -65,7 +65,9 @@ export class Florence2CaptionModel implements CaptionModel {
     try {
       const generationParams = {
         prompt,
-        max_new_tokens: options.maxNewTokens ?? (mode === "DETAILED" ? 120 : 50),
+        max_new_tokens:
+          options.maxNewTokens ??
+          (mode === "DETAILED" ? 120 : config.generation.maxNewTokens),
         do_sample: options.doSample ?? false,
       };
       output = await pipe(validatedPath, generationParams);

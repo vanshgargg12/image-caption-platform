@@ -86,6 +86,10 @@ Internal Node.js service providing ONNX-based image captioning via `@huggingface
 | `MAX_IMAGE_SIZE_BYTES` | `10485760` | Max upload size in bytes (10MB) |
 | `INFERENCE_TIMEOUT_MS` | `30000` | Inference timeout in milliseconds |
 | `MAX_CONCURRENT_INFERENCE` | `1` | Max concurrent inference execution tasks |
+| `CAPTION_MAX_NEW_TOKENS` | `24` | Maximum new tokens to generate during caption inference |
+| `CAPTION_NUM_BEAMS` | `4` | Number of beams for beam search decoding |
+| `CAPTION_NO_REPEAT_NGRAM` | `3` | N-gram size to prevent repeated token sequences |
+| `CAPTION_REPETITION_PENALTY` | `1.0` | Repetition penalty factor for generation |
 
 ---
 
