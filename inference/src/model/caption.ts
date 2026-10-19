@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks";
-import { loadConfig } from "../config.js";
+import { AppConfig, loadConfig } from "../config.js";
 import { getOrLoadModel } from "./loader.js";
 import { CaptionGenerationError, CaptionResult, ModelConfig } from "./types.js";
 import { validateImagePath } from "./validation.js";
@@ -7,7 +7,15 @@ import { validateImagePath } from "./validation.js";
 export interface GenerateCaptionOptions {
   config?: ModelConfig;
   maxNewTokens?: number;
+  max_new_tokens?: number;
+  numBeams?: number;
+  num_beams?: number;
+  noRepeatNgramSize?: number;
+  no_repeat_ngram_size?: number;
+  repetitionPenalty?: number;
+  repetition_penalty?: number;
   doSample?: boolean;
+  do_sample?: boolean;
 }
 
 export async function generateCaption(
@@ -35,9 +43,15 @@ export async function generateCaption(
   const inferenceStart = performance.now();
   let output;
   try {
+    const genConfig = (config as Partial<AppConfig>).generation ?? loadConfig().generation;
     const generationParams = {
-      max_new_tokens: options.maxNewTokens ?? 50,
-      do_sample: options.doSample ?? false,
+      max_new_tokens: options.maxNewTokens ?? options.max_new_tokens ?? genConfig.maxNewTokens,
+      num_beams: options.numBeams ?? options.num_beams ?? genConfig.numBeams,
+      no_repeat_ngram_size:
+        options.noRepeatNgramSize ?? options.no_repeat_ngram_size ?? genConfig.noRepeatNgramSize,
+      repetition_penalty:
+        options.repetitionPenalty ?? options.repetition_penalty ?? genConfig.repetitionPenalty,
+      do_sample: options.doSample ?? options.do_sample ?? false,
     };
     output = await pipe(validatedPath, generationParams);
   } catch (error) {

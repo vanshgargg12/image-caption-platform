@@ -1,11 +1,60 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, it } from "node:test";
+import { setModelPipelineForTesting } from "../src/model/loader.js";
 import { ModelRegistry } from "../src/model/providers/modelRegistry.js";
 import { VitGpt2CaptionModel } from "../src/model/providers/vitGpt2Provider.js";
 import { Florence2CaptionModel } from "../src/model/providers/florence2Provider.js";
 import { UnsupportedModeError } from "../src/model/providers/types.js";
 
 describe("CaptionModel Provider Abstraction & Registry", () => {
+  it("VitGpt2CaptionModel passes configured generation parameters to pipeline", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vitgpt2-prov-test-"));
+    const imgPath = path.join(tmpDir, "test.jpg");
+    fs.writeFileSync(imgPath, Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]));
+
+    let calledParams: unknown = null;
+    setModelPipelineForTesting(async (_path: string, params: unknown) => {
+      calledParams = params;
+      return [{ generated_text: "provider caption" }];
+    });
+
+    try {
+      const model = new VitGpt2CaptionModel();
+      await model.generate(imgPath, "SHORT");
+
+      assert.deepEqual(calledParams, {
+        max_new_tokens: 24,
+        num_beams: 4,
+        no_repeat_ngram_size: 3,
+        repetition_penalty: 1.0,
+        do_sample: false,
+      });
+
+      // Override via options
+      await model.generate(imgPath, "SHORT", {
+        maxNewTokens: 18,
+        numBeams: 2,
+        noRepeatNgramSize: 2,
+        repetitionPenalty: 1.3,
+        doSample: true,
+      });
+
+      assert.deepEqual(calledParams, {
+        max_new_tokens: 18,
+        num_beams: 2,
+        no_repeat_ngram_size: 2,
+        repetition_penalty: 1.3,
+        do_sample: true,
+      });
+    } finally {
+      setModelPipelineForTesting(null);
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it("VitGpt2CaptionModel supports SHORT mode and rejects DETAILED mode", () => {
     const model = new VitGpt2CaptionModel();
     assert.equal(model.id, "Xenova/vit-gpt2-image-captioning");

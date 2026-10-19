@@ -55,7 +55,40 @@ describe("generateCaption (mocked model test)", () => {
     assert.equal(typeof result.inferenceTimeMs, "number");
     assert.equal(typeof result.modelLoadTimeMs, "number");
     assert.equal(callCount, 1);
-    assert.deepEqual(calledParams, { max_new_tokens: 50, do_sample: false });
+    assert.deepEqual(calledParams, {
+      max_new_tokens: 24,
+      num_beams: 4,
+      no_repeat_ngram_size: 3,
+      repetition_penalty: 1.0,
+      do_sample: false,
+    });
+  });
+
+  it("allows per-request options to override generation settings", async () => {
+    let calledParams: unknown = null;
+
+    const mockPipe = async (_imgPath: string, params: unknown) => {
+      calledParams = params;
+      return [{ generated_text: "custom options caption" }];
+    };
+
+    setModelPipelineForTesting(mockPipe);
+
+    await generateCaption(sampleJpegPath, {
+      maxNewTokens: 16,
+      numBeams: 2,
+      noRepeatNgramSize: 2,
+      repetitionPenalty: 1.2,
+      doSample: true,
+    });
+
+    assert.deepEqual(calledParams, {
+      max_new_tokens: 16,
+      num_beams: 2,
+      no_repeat_ngram_size: 2,
+      repetition_penalty: 1.2,
+      do_sample: true,
+    });
   });
 
   it("reuses the singleton model loader across multiple generateCaption calls", async () => {

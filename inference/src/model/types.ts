@@ -1,3 +1,5 @@
+import { GenerationSettings } from "../config.js";
+
 export interface ModelConfig {
   modelId: string;
   modelRevision: string;
@@ -5,6 +7,7 @@ export interface ModelConfig {
   maxImageSizeBytes?: number;
   inferenceTimeoutMs?: number;
   maxConcurrentInference?: number;
+  generation?: GenerationSettings;
 }
 
 export interface CaptionResult {

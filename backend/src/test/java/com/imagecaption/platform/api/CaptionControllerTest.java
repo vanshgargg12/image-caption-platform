@@ -15,8 +15,14 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.UUID;
+import javax.imageio.ImageIO;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -36,7 +42,22 @@ class CaptionControllerTest {
     @MockitoBean
     private CaptionService captionService;
 
-    private static final byte[] VALID_JPEG = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10, 0x4A, 0x46};
+    private static final byte[] VALID_JPEG = createRealJpeg();
+
+    private static byte[] createRealJpeg() {
+        try {
+            BufferedImage image = new BufferedImage(32, 32, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = image.createGraphics();
+            g.setColor(Color.BLUE);
+            g.fillRect(0, 0, 32, 32);
+            g.dispose();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", baos);
+            return baos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Test
     void createCaptionRequest_successReturns201() throws Exception {
@@ -63,13 +84,39 @@ class CaptionControllerTest {
     @Test
     void createCaptionRequest_invalidImageReturns400() throws Exception {
         when(captionService.processCaptionRequest(any(), any()))
-                .thenThrow(new InvalidImageException("File headers do not match a valid JPEG or PNG image.", "UNSUPPORTED_IMAGE_TYPE"));
+                .thenThrow(new InvalidImageException("File headers do not match a valid JPEG, PNG, or WebP image.", "UNSUPPORTED_IMAGE_TYPE"));
 
         MockMultipartFile file = new MockMultipartFile("image", "bad.txt", "text/plain", "invalid".getBytes());
 
         mockMvc.perform(multipart("/api/v1/captions").file(file))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_IMAGE_TYPE"));
+    }
+
+    @Test
+    void createCaptionRequest_corruptImageReturns400() throws Exception {
+        when(captionService.processCaptionRequest(any(), any()))
+                .thenThrow(new InvalidImageException("Image is corrupt, truncated, or not a valid JPEG/PNG/WebP.", "CORRUPT_IMAGE"));
+
+        MockMultipartFile file = new MockMultipartFile("image", "corrupt.jpg", "image/jpeg", VALID_JPEG);
+
+        mockMvc.perform(multipart("/api/v1/captions").file(file))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CORRUPT_IMAGE"))
+                .andExpect(jsonPath("$.message").value("Image is corrupt, truncated, or not a valid JPEG/PNG/WebP."));
+    }
+
+    @Test
+    void createCaptionRequest_unsupportedCaptionModeReturns400() throws Exception {
+        when(captionService.processCaptionRequest(any(), any()))
+                .thenThrow(new InvalidImageException("Caption mode is not supported.", "UNSUPPORTED_CAPTION_MODE"));
+
+        MockMultipartFile file = new MockMultipartFile("image", "valid.jpg", "image/jpeg", VALID_JPEG);
+
+        mockMvc.perform(multipart("/api/v1/captions").file(file))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_CAPTION_MODE"))
+                .andExpect(jsonPath("$.message").value("Caption mode is not supported."));
     }
 
     @Test

@@ -21,6 +21,33 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export function getFriendlyErrorMessage(code: string, fallbackMessage?: string): string {
+  switch (code) {
+    case 'CORRUPT_IMAGE':
+      return 'The uploaded image appears to be corrupted, truncated, or unreadable. Please check the file and try another image.';
+    case 'UNSUPPORTED_CAPTION_MODE':
+      return 'The selected caption mode is not supported by the model.';
+    case 'UNSUPPORTED_IMAGE_TYPE':
+      return 'Only JPEG, PNG, and WebP images are supported.';
+    case 'EMPTY_FILE':
+      return 'The uploaded image file is empty or corrupted.';
+    case 'MISSING_IMAGE_FILE':
+      return 'Please choose an image file to upload.';
+    case 'PAYLOAD_TOO_LARGE':
+      return 'The uploaded image size exceeds the maximum limit of 10MB.';
+    case 'INFERENCE_TIMEOUT':
+      return 'Caption generation timed out. Please try again.';
+    case 'INFERENCE_SERVICE_UNAVAILABLE':
+    case 'MODEL_NOT_READY':
+    case 'SERVICE_BUSY':
+      return 'The caption service is currently unavailable or busy. Please try again in a few moments.';
+    case 'CAPTION_GENERATION_FAILED':
+      return 'The model was unable to generate a caption for this image. Please try a different image.';
+    default:
+      return fallbackMessage || 'An unexpected error occurred. Please try again.';
+  }
+}
+
 function getFallbackErrorCode(status: number): string {
   switch (status) {
     case 400: return 'INVALID_INPUT';

@@ -9,6 +9,7 @@ import { CaptionMode } from "../model/providers/types.js";
 import { globalInferenceQueue } from "../model/queue.js";
 import { getModelState, initializeModel } from "../model/state.js";
 import { ImageValidationError } from "../model/types.js";
+import { assertDecodable, detectImageType } from "../model/validation.js";
 import { createErrorResponse, handleInferenceError } from "../utils/errors.js";
 
 export async function registerInternalRoutes(app: FastifyInstance): Promise<void> {
@@ -145,6 +146,8 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
         );
       }
 
+      await assertDecodable(fileBuffer);
+
       // Resolve model from ModelRegistry
       const captionModel = ModelRegistry.getInstance().getModel(modelInput || config.modelId);
 
@@ -160,26 +163,11 @@ export async function registerInternalRoutes(app: FastifyInstance): Promise<void
       // Save file buffer to temporary disk location for validation & inference
       let ext = path.extname(originalFilename).toLowerCase();
       if (![".jpg", ".jpeg", ".png", ".webp"].includes(ext)) {
-        if (fileBuffer.length >= 4) {
-          const isJpeg = fileBuffer[0] === 0xff && fileBuffer[1] === 0xd8;
-          const isPng =
-            fileBuffer[0] === 0x89 &&
-            fileBuffer[1] === 0x50 &&
-            fileBuffer[2] === 0x4e &&
-            fileBuffer[3] === 0x47;
-          const isWebp =
-            fileBuffer[0] === 0x52 &&
-            fileBuffer[1] === 0x49 &&
-            fileBuffer[2] === 0x46 &&
-            fileBuffer[3] === 0x47;
-
-          if (isPng) ext = ".png";
-          else if (isWebp) ext = ".webp";
-          else if (isJpeg) ext = ".jpg";
-        }
-        if (![".jpg", ".jpeg", ".png", ".webp"].includes(ext)) {
-          ext = ".jpg";
-        }
+        const detectedType = detectImageType(fileBuffer);
+        if (detectedType === "png") ext = ".png";
+        else if (detectedType === "webp") ext = ".webp";
+        else if (detectedType === "jpeg") ext = ".jpg";
+        else ext = ".jpg";
       }
       tempFilePath = path.join(
         os.tmpdir(),
