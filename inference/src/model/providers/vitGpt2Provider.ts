@@ -48,9 +48,15 @@ export class VitGpt2CaptionModel implements CaptionModel {
     const inferenceStart = performance.now();
     let output;
     try {
+      const genConfig = config.generation;
       const generationParams = {
-        max_new_tokens: options.maxNewTokens ?? 50,
-        do_sample: options.doSample ?? false,
+        max_new_tokens: options.maxNewTokens ?? options.max_new_tokens ?? genConfig.maxNewTokens,
+        num_beams: options.numBeams ?? options.num_beams ?? genConfig.numBeams,
+        no_repeat_ngram_size:
+          options.noRepeatNgramSize ?? options.no_repeat_ngram_size ?? genConfig.noRepeatNgramSize,
+        repetition_penalty:
+          options.repetitionPenalty ?? options.repetition_penalty ?? genConfig.repetitionPenalty,
+        do_sample: options.doSample ?? options.do_sample ?? false,
       };
       output = await pipe(validatedPath, generationParams);
     } catch (error) {
