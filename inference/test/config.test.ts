@@ -29,6 +29,9 @@ describe("loadConfig", () => {
     assert.equal(config.generation.numBeams, 4);
     assert.equal(config.generation.noRepeatNgramSize, 3);
     assert.equal(config.generation.repetitionPenalty, 1.0);
+    assert.equal(config.florence2Generation.maxNewTokensShort, 40);
+    assert.equal(config.florence2Generation.maxNewTokensDetailed, 120);
+    assert.equal(config.florence2Generation.numBeams, 3);
   });
 
   it("respects custom environment variables", () => {
@@ -40,6 +43,9 @@ describe("loadConfig", () => {
     process.env.CAPTION_NUM_BEAMS = "2";
     process.env.CAPTION_NO_REPEAT_NGRAM = "4";
     process.env.CAPTION_REPETITION_PENALTY = "1.5";
+    process.env.FLORENCE2_MAX_NEW_TOKENS_SHORT = "50";
+    process.env.FLORENCE2_MAX_NEW_TOKENS_DETAILED = "150";
+    process.env.FLORENCE2_NUM_BEAMS = "5";
 
     const config = loadConfig();
 
@@ -51,6 +57,9 @@ describe("loadConfig", () => {
     assert.equal(config.generation.numBeams, 2);
     assert.equal(config.generation.noRepeatNgramSize, 4);
     assert.equal(config.generation.repetitionPenalty, 1.5);
+    assert.equal(config.florence2Generation.maxNewTokensShort, 50);
+    assert.equal(config.florence2Generation.maxNewTokensDetailed, 150);
+    assert.equal(config.florence2Generation.numBeams, 5);
   });
 
   it("throws an error if INFERENCE_PORT is invalid", () => {
@@ -94,5 +103,29 @@ describe("loadConfig", () => {
 
     process.env.CAPTION_REPETITION_PENALTY = "abc";
     assert.throws(() => loadConfig(), /CAPTION_REPETITION_PENALTY must be a positive number/);
+  });
+
+  it("throws an error if FLORENCE2_MAX_NEW_TOKENS_SHORT is invalid", () => {
+    process.env.FLORENCE2_MAX_NEW_TOKENS_SHORT = "0";
+    assert.throws(() => loadConfig(), /FLORENCE2_MAX_NEW_TOKENS_SHORT must be a positive integer/);
+
+    process.env.FLORENCE2_MAX_NEW_TOKENS_SHORT = "abc";
+    assert.throws(() => loadConfig(), /FLORENCE2_MAX_NEW_TOKENS_SHORT must be a positive integer/);
+  });
+
+  it("throws an error if FLORENCE2_MAX_NEW_TOKENS_DETAILED is invalid", () => {
+    process.env.FLORENCE2_MAX_NEW_TOKENS_DETAILED = "-10";
+    assert.throws(() => loadConfig(), /FLORENCE2_MAX_NEW_TOKENS_DETAILED must be a positive integer/);
+
+    process.env.FLORENCE2_MAX_NEW_TOKENS_DETAILED = "xyz";
+    assert.throws(() => loadConfig(), /FLORENCE2_MAX_NEW_TOKENS_DETAILED must be a positive integer/);
+  });
+
+  it("throws an error if FLORENCE2_NUM_BEAMS is invalid", () => {
+    process.env.FLORENCE2_NUM_BEAMS = "0";
+    assert.throws(() => loadConfig(), /FLORENCE2_NUM_BEAMS must be a positive integer/);
+
+    process.env.FLORENCE2_NUM_BEAMS = "invalid";
+    assert.throws(() => loadConfig(), /FLORENCE2_NUM_BEAMS must be a positive integer/);
   });
 });

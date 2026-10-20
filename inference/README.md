@@ -7,6 +7,37 @@ Internal Node.js service providing ONNX-based image captioning via `@huggingface
 
 ---
 
+## Supported Models and Modes
+
+The inference service provides a unified provider abstraction (`CaptionModel`) supporting multiple ONNX vision-language architectures:
+
+| Model ID | Provider | Supported Modes | Description |
+|---|---|---|---|
+| `Xenova/vit-gpt2-image-captioning` | `VitGpt2CaptionModel` | `SHORT` | Fast, lightweight vision-encoder-decoder trained on COCO captions. |
+| `onnx-community/Florence-2-base-ft` | `Florence2CaptionModel` | `SHORT`, `DETAILED`, `OCR` | Advanced foundation model capable of task-prompted detailed captions and text extraction. |
+
+### Florence-2 Architecture & Generation Flow
+
+Unlike ViT-GPT2 which uses the standard `pipeline("image-to-text")`, Florence-2 is an `image-text-to-text` model requiring explicit task prompts. It directly utilizes library classes from `@huggingface/transformers`:
+- `Florence2ForConditionalGeneration`: The multi-modal ONNX model instance (vision encoder + language decoder).
+- `AutoProcessor`: Multi-modal processor handling image preprocessing, task prompt injection (`construct_prompts`), and output parsing (`post_process_generation`).
+- `AutoTokenizer`: Decodes generated token IDs into text.
+- `RawImage`: Library image representation and dimensions loader.
+
+#### Inference Execution Flow
+1. **Load image**: `image = await RawImage.read(path)`
+2. **Vision preprocessing**: `visionInputs = await processor(image)`
+3. **Task prompting & tokenization**: `prompts = processor.construct_prompts(task); textInputs = tokenizer(prompts)`
+   - `SHORT` maps to `<CAPTION>`
+   - `DETAILED` maps to `<MORE_DETAILED_CAPTION>`
+   - `OCR` maps to `<OCR>`
+4. **Generation**: `ids = await model.generate({ ...textInputs, ...visionInputs, max_new_tokens, num_beams })`
+5. **Decoding**: `text = tokenizer.batch_decode(ids, { skip_special_tokens: false })[0]`
+6. **Task post-processing**: `result = processor.post_process_generation(text, task, image.size); caption = result[task]`
+7. **Caption cleanup**: Raw task prompt tokens and special tags are stripped, and output is normalized using `cleanCaption()`.
+
+---
+
 ## HTTP Endpoints
 
 | Method | Path | Description | Access |
@@ -86,10 +117,13 @@ Internal Node.js service providing ONNX-based image captioning via `@huggingface
 | `MAX_IMAGE_SIZE_BYTES` | `10485760` | Max upload size in bytes (10MB) |
 | `INFERENCE_TIMEOUT_MS` | `30000` | Inference timeout in milliseconds |
 | `MAX_CONCURRENT_INFERENCE` | `1` | Max concurrent inference execution tasks |
-| `CAPTION_MAX_NEW_TOKENS` | `24` | Maximum new tokens to generate during caption inference |
-| `CAPTION_NUM_BEAMS` | `4` | Number of beams for beam search decoding |
-| `CAPTION_NO_REPEAT_NGRAM` | `3` | N-gram size to prevent repeated token sequences |
-| `CAPTION_REPETITION_PENALTY` | `1.0` | Repetition penalty factor for generation |
+| `CAPTION_MAX_NEW_TOKENS` | `24` | Maximum new tokens to generate during caption inference (ViT-GPT2) |
+| `CAPTION_NUM_BEAMS` | `4` | Number of beams for beam search decoding (ViT-GPT2) |
+| `CAPTION_NO_REPEAT_NGRAM` | `3` | N-gram size to prevent repeated token sequences (ViT-GPT2) |
+| `CAPTION_REPETITION_PENALTY` | `1.0` | Repetition penalty factor for generation (ViT-GPT2) |
+| `FLORENCE2_MAX_NEW_TOKENS_SHORT` | `40` | Default maximum new tokens for Florence-2 in `SHORT` mode |
+| `FLORENCE2_MAX_NEW_TOKENS_DETAILED` | `120` | Default maximum new tokens for Florence-2 in `DETAILED` mode |
+| `FLORENCE2_NUM_BEAMS` | `3` | Default number of beams for Florence-2 generation |
 
 ---
 
