@@ -1,16 +1,73 @@
 import { performance } from "node:perf_hooks";
+import {
+  AutoProcessor,
+  AutoTokenizer,
+  Florence2ForConditionalGeneration,
+  RawImage,
+  env,
+} from "@huggingface/transformers";
 import { loadConfig } from "../../config.js";
-import { getOrLoadModel } from "../loader.js";
-import { CaptionGenerationError } from "../types.js";
+import { getOrLoad, loadWithCacheRecovery, loadedModels } from "../loader.js";
+import { cleanCaption } from "../postprocess.js";
+import { setModelStateForTesting } from "../state.js";
+import { CaptionGenerationError, ModelLoadError } from "../types.js";
 import { validateImagePath } from "../validation.js";
-import { CaptionMode, CaptionModel, GenerateOptions, InferenceResult, UnsupportedModeError } from "./types.js";
+import {
+  CaptionMode,
+  CaptionModel,
+  GenerateOptions,
+  InferenceResult,
+  UnsupportedModeError,
+} from "./types.js";
 
-const PROMPT_MAP: Record<CaptionMode, string> = {
+export interface Florence2ModelTriple {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  model: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  processor: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tokenizer: any;
+}
+
+let mockFlorence2Triple: Florence2ModelTriple | null = null;
+
+/**
+ * Injects a mock Florence-2 model triple (or clears it) for testing.
+ */
+export function setFlorence2ModelForTesting(mock: Florence2ModelTriple | null): void {
+  mockFlorence2Triple = mock;
+  const key = "onnx-community/Florence-2-base-ft::main";
+  if (mock === null) {
+    loadedModels.delete(key);
+    setModelStateForTesting(
+      {
+        loaded: false,
+        loading: false,
+        modelId: "onnx-community/Florence-2-base-ft",
+        modelRevision: "main",
+        error: null,
+      },
+      "onnx-community/Florence-2-base-ft"
+    );
+  } else {
+    loadedModels.set(key, Promise.resolve(mock));
+    setModelStateForTesting(
+      {
+        loaded: true,
+        loading: false,
+        modelId: "onnx-community/Florence-2-base-ft",
+        modelRevision: "main",
+        error: null,
+      },
+      "onnx-community/Florence-2-base-ft"
+    );
+  }
+}
+
+const PROMPT_MAP: Record<"SHORT" | "DETAILED" | "OCR", string> = {
   SHORT: "<CAPTION>",
-  DETAILED: "<DETAILED_CAPTION>",
+  DETAILED: "<MORE_DETAILED_CAPTION>",
   OCR: "<OCR>",
-  OBJECT_DETECTION: "<OD>",
-  REGION_DESCRIPTIONS: "<REGION_TO_CATEGORY>",
 };
 
 export class Florence2CaptionModel implements CaptionModel {
@@ -20,8 +77,6 @@ export class Florence2CaptionModel implements CaptionModel {
     "SHORT",
     "DETAILED",
     "OCR",
-    "OBJECT_DETECTION",
-    "REGION_DESCRIPTIONS",
   ]);
 
   public supportsMode(mode: CaptionMode): boolean {
@@ -39,15 +94,83 @@ export class Florence2CaptionModel implements CaptionModel {
 
     const validatedPath = validateImagePath(inputPath);
     const config = loadConfig();
-    const prompt = PROMPT_MAP[mode];
+    const task = PROMPT_MAP[mode as "SHORT" | "DETAILED" | "OCR"];
 
+    const key = `${this.id}::${this.revision}`;
     const loadStart = performance.now();
-    let pipe;
+    let triple: Florence2ModelTriple;
+
     try {
-      pipe = await getOrLoadModel({
-        ...config,
-        modelId: this.id,
-        modelRevision: this.revision,
+      triple = await getOrLoad<Florence2ModelTriple>(key, async () => {
+        if (mockFlorence2Triple) {
+          setModelStateForTesting(
+            {
+              loaded: true,
+              loading: false,
+              modelId: this.id,
+              modelRevision: this.revision,
+              error: null,
+            },
+            this.id
+          );
+          return mockFlorence2Triple;
+        }
+
+        env.cacheDir = config.modelCacheDir;
+        setModelStateForTesting(
+          {
+            modelId: this.id,
+            modelRevision: this.revision,
+            loading: true,
+            error: null,
+          },
+          this.id
+        );
+
+        try {
+          const loaded = await loadWithCacheRecovery(
+            this.id,
+            config.modelCacheDir,
+            async () => {
+              const modelOptions = { revision: this.revision };
+              const [model, processor, tokenizer] = await Promise.all([
+                Florence2ForConditionalGeneration.from_pretrained(this.id, modelOptions),
+                AutoProcessor.from_pretrained(this.id, modelOptions),
+                AutoTokenizer.from_pretrained(this.id, modelOptions),
+              ]);
+              return { model, processor, tokenizer };
+            }
+          );
+
+          setModelStateForTesting(
+            {
+              loaded: true,
+              loading: false,
+              modelId: this.id,
+              modelRevision: this.revision,
+              error: null,
+            },
+            this.id
+          );
+
+          return loaded;
+        } catch (firstError) {
+          const errMsg = firstError instanceof Error ? firstError.message : String(firstError);
+          setModelStateForTesting(
+            {
+              loaded: false,
+              loading: false,
+              modelId: this.id,
+              modelRevision: this.revision,
+              error: errMsg,
+            },
+            this.id
+          );
+          throw new ModelLoadError(
+            `Failed to load Florence-2 model '${this.id}' (revision: ${this.revision}): ${errMsg}`,
+            firstError
+          );
+        }
       });
     } catch (error) {
       if (error instanceof Error && error.name === "ModelLoadError") {
@@ -61,16 +184,52 @@ export class Florence2CaptionModel implements CaptionModel {
     const modelLoadTimeMs = Math.round(performance.now() - loadStart);
 
     const inferenceStart = performance.now();
-    let output;
+    let rawAnswer: unknown;
     try {
-      const generationParams = {
-        prompt,
-        max_new_tokens:
-          options.maxNewTokens ??
-          (mode === "DETAILED" ? 120 : config.generation.maxNewTokens),
-        do_sample: options.doSample ?? false,
+      const { model, processor, tokenizer } = triple;
+
+      const image = await RawImage.read(validatedPath);
+      const visionInputs = await processor(image);
+      const prompts = processor.construct_prompts(task);
+      const textInputs = tokenizer(prompts);
+
+      const max_new_tokens =
+        options.maxNewTokens ??
+        options.max_new_tokens ??
+        (mode === "DETAILED"
+          ? config.florence2Generation.maxNewTokensDetailed
+          : config.florence2Generation.maxNewTokensShort);
+
+      const num_beams =
+        options.numBeams ??
+        options.num_beams ??
+        config.florence2Generation.numBeams;
+
+      const generateArgs: Record<string, unknown> = {
+        ...textInputs,
+        ...visionInputs,
+        max_new_tokens,
+        num_beams,
       };
-      output = await pipe(validatedPath, generationParams);
+
+      if (options.doSample !== undefined || options.do_sample !== undefined) {
+        generateArgs.do_sample = options.doSample ?? options.do_sample;
+      }
+      if (options.noRepeatNgramSize !== undefined || options.no_repeat_ngram_size !== undefined) {
+        generateArgs.no_repeat_ngram_size =
+          options.noRepeatNgramSize ?? options.no_repeat_ngram_size;
+      }
+      if (options.repetitionPenalty !== undefined || options.repetition_penalty !== undefined) {
+        generateArgs.repetition_penalty =
+          options.repetitionPenalty ?? options.repetition_penalty;
+      }
+
+      const ids = await model.generate(generateArgs);
+      const decoded = tokenizer.batch_decode(ids, { skip_special_tokens: false });
+      const text = Array.isArray(decoded) ? decoded[0] : String(decoded ?? "");
+
+      const result = processor.post_process_generation(text, task, image.size);
+      rawAnswer = result?.[task];
     } catch (error) {
       throw new CaptionGenerationError(
         `Inference failed for image '${validatedPath}': ${
@@ -81,23 +240,30 @@ export class Florence2CaptionModel implements CaptionModel {
     }
     const inferenceTimeMs = Math.round(performance.now() - inferenceStart);
 
-    let rawText = "";
-    if (Array.isArray(output) && output.length > 0) {
-      rawText = output[0]?.generated_text ?? output[0]?.text ?? "";
-    } else if (typeof output === "object" && output !== null) {
-      rawText =
-        (output as { generated_text?: string; text?: string }).generated_text ??
-        (output as { text?: string }).text ??
-        "";
-    } else if (typeof output === "string") {
-      rawText = output;
+    let rawCaption = "";
+    if (typeof rawAnswer === "string") {
+      rawCaption = rawAnswer;
+    } else if (
+      rawAnswer &&
+      typeof rawAnswer === "object" &&
+      Array.isArray((rawAnswer as { labels?: string[] }).labels)
+    ) {
+      rawCaption = (rawAnswer as { labels: string[] }).labels.join(" ");
+    } else if (rawAnswer !== undefined && rawAnswer !== null) {
+      rawCaption = String(rawAnswer);
     }
 
-    // Postprocess Florence-2 output: remove prompt tokens if present
-    const cleanedText = rawText.replace(prompt, "").trim();
+    // Strip raw task token and special tokens (never return raw task token)
+    let stripped = rawCaption.replaceAll(task, "").trim();
+    stripped = stripped.replace(/<\/?s>/g, "").trim();
+    for (const promptToken of Object.values(PROMPT_MAP)) {
+      stripped = stripped.replaceAll(promptToken, "").trim();
+    }
+
+    const caption = cleanCaption(stripped);
 
     return {
-      caption: cleanedText,
+      caption,
       model: this.id,
       modelVersion: this.revision,
       mode,
@@ -106,8 +272,8 @@ export class Florence2CaptionModel implements CaptionModel {
       input: validatedPath,
       requestId: options.requestId,
       details: {
-        taskPrompt: prompt,
-        rawLength: rawText.length,
+        taskPrompt: task,
+        rawLength: typeof rawAnswer === "string" ? rawAnswer.length : undefined,
       },
     };
   }

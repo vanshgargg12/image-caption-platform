@@ -5,6 +5,12 @@ export interface GenerationSettings {
   repetitionPenalty: number;
 }
 
+export interface Florence2GenerationSettings {
+  maxNewTokensShort: number;
+  maxNewTokensDetailed: number;
+  numBeams: number;
+}
+
 export interface AppConfig {
   port: number;
   modelId: string;
@@ -15,6 +21,39 @@ export interface AppConfig {
   maxConcurrentInference: number;
   generation: GenerationSettings;
   generationSettings: GenerationSettings;
+  florence2Generation: Florence2GenerationSettings;
+}
+
+export function loadFlorence2GenerationSettings(): Florence2GenerationSettings {
+  const maxNewTokensShort = Number.parseInt(
+    process.env.FLORENCE2_MAX_NEW_TOKENS_SHORT ?? "40",
+    10
+  );
+  if (Number.isNaN(maxNewTokensShort) || maxNewTokensShort <= 0) {
+    throw new Error("FLORENCE2_MAX_NEW_TOKENS_SHORT must be a positive integer");
+  }
+
+  const maxNewTokensDetailed = Number.parseInt(
+    process.env.FLORENCE2_MAX_NEW_TOKENS_DETAILED ?? "120",
+    10
+  );
+  if (Number.isNaN(maxNewTokensDetailed) || maxNewTokensDetailed <= 0) {
+    throw new Error("FLORENCE2_MAX_NEW_TOKENS_DETAILED must be a positive integer");
+  }
+
+  const numBeams = Number.parseInt(
+    process.env.FLORENCE2_NUM_BEAMS ?? "3",
+    10
+  );
+  if (Number.isNaN(numBeams) || numBeams <= 0) {
+    throw new Error("FLORENCE2_NUM_BEAMS must be a positive integer");
+  }
+
+  return {
+    maxNewTokensShort,
+    maxNewTokensDetailed,
+    numBeams,
+  };
 }
 
 export function loadGenerationSettings(): GenerationSettings {
@@ -85,6 +124,7 @@ export function loadConfig(): AppConfig {
   }
 
   const generation = loadGenerationSettings();
+  const florence2Generation = loadFlorence2GenerationSettings();
 
   return {
     port,
@@ -96,5 +136,6 @@ export function loadConfig(): AppConfig {
     maxConcurrentInference,
     generation,
     generationSettings: generation,
+    florence2Generation,
   };
 }
